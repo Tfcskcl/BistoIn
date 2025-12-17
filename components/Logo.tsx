@@ -1,5 +1,5 @@
+
 import React from 'react';
-import { Brain, UtensilsCrossed } from 'lucide-react';
 
 interface LogoProps {
   className?: string;
@@ -7,27 +7,61 @@ interface LogoProps {
   light?: boolean;
 }
 
-export const Logo: React.FC<LogoProps> = ({ className = "", iconSize = 24, light = false }) => {
+export const Logo: React.FC<LogoProps> = ({ className = "", iconSize = 28, light = false }) => {
+  // Brand Colors
+  const baseColor = light ? '#ffffff' : '#0f172a'; // White or Slate-900 (Structure)
+  const accentColor = '#10b981'; // Emerald-500 (Intelligence/Growth)
+  const secondaryColor = light ? '#94a3b8' : '#64748b'; // Slate-400 or Slate-500 (Subtext)
+
   return (
     <div className={`flex items-center gap-3 ${className}`}>
       <div className="relative flex items-center justify-center">
-        <div className={`absolute inset-0 rounded-xl rotate-6 ${light ? 'bg-yellow-400/20' : 'bg-yellow-400'} blur-sm`}></div>
-        <div className={`relative z-10 p-2 rounded-xl border-2 ${light ? 'bg-slate-900 border-yellow-400' : 'bg-white border-slate-900'}`}>
-          <div className="relative">
-            <Brain size={iconSize} className={light ? 'text-white' : 'text-slate-900'} />
-            <div className="absolute -bottom-1 -right-1 bg-yellow-400 rounded-full p-0.5 border border-white">
-                <UtensilsCrossed size={iconSize * 0.4} className="text-slate-900" />
-            </div>
-          </div>
-        </div>
+        {/* The Data-Point Fork Icon */}
+        <svg 
+            width={iconSize} 
+            height={iconSize} 
+            viewBox="0 0 40 40" 
+            fill="none" 
+            xmlns="http://www.w3.org/2000/svg"
+        >
+            {/* The Fork Base (Structure) */}
+            <path 
+                d="M11 17V21C11 26 15 29 20 29C25 29 29 26 29 21V17" 
+                stroke={baseColor} 
+                strokeWidth="2.5" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+            />
+            
+            {/* The Handle */}
+            <path 
+                d="M20 29V36" 
+                stroke={baseColor} 
+                strokeWidth="2.5" 
+                strokeLinecap="round" 
+            />
+
+            {/* The Intelligence Nodes (Data Points replacing Tines) */}
+            {/* Left Node */}
+            <circle cx="11" cy="11" r="3" fill={accentColor} />
+            
+            {/* Middle Node (Higher = Growth) */}
+            <circle cx="20" cy="7" r="3" fill={accentColor} />
+            
+            {/* Right Node */}
+            <circle cx="29" cy="11" r="3" fill={accentColor} />
+        </svg>
       </div>
-      <div>
-        <h1 className={`font-bold tracking-tight leading-none ${light ? 'text-white' : 'text-slate-900'}`} style={{ fontSize: iconSize * 0.8 }}>
-          Bistro<span className="text-yellow-500">Intel</span>
+      
+      <div className="flex flex-col justify-center">
+        <h1 className="font-bold tracking-tight leading-none flex items-center gap-0.5" style={{ fontSize: iconSize * 0.75, color: baseColor }}>
+          Bistro<span style={{ color: accentColor }}>Connect</span>
         </h1>
-        <p className={`text-[10px] tracking-widest uppercase opacity-60 ${light ? 'text-slate-300' : 'text-slate-500'}`}>
-            Intelligence for F&B
-        </p>
+        {iconSize > 20 && (
+            <p className="text-[9px] font-medium tracking-[0.25em] uppercase opacity-80" style={{ color: secondaryColor }}>
+                Intelligence
+            </p>
+        )}
       </div>
     </div>
   );
