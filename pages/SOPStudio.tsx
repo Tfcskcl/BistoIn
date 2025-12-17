@@ -3,8 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { User, SOP, SOPRequest, UserRole } from '../types';
 import { generateSOP } from '../services/geminiService';
 import { storageService } from '../services/storageService';
-import { CREDIT_COSTS } from '../constants';
-import { FileText, Loader2, Sparkles, Save, Search, AlertCircle, CheckCircle2, Clock, Wallet, BookOpen, Printer, Share2, User as UserIcon, X, Copy, Mail, Key, Link } from 'lucide-react';
+import { FileText, Loader2, Sparkles, Save, Wallet, BookOpen, Share2, CheckCircle2, Clock, Link } from 'lucide-react';
 
 interface SOPStudioProps {
   user: User;
@@ -19,30 +18,46 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
   const [generatedSOP, setGeneratedSOP] = useState<SOP | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedSOPs, setSavedSOPs] = useState<SOP[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [requests, setRequests] = useState<SOPRequest[]>([]);
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
 
   useEffect(() => {
     loadSavedSOPs();
-    if (isAdmin) loadRequests();
-  }, [user.id, isAdmin]);
+  }, [user.id]);
 
   const loadSavedSOPs = () => setSavedSOPs(storageService.getSavedSOPs(user.id));
-  const loadRequests = () => setRequests(storageService.getAllSOPRequests().filter(r => r.status === 'pending'));
+
+  const checkQuota = (): boolean => {
+      if (isAdmin) return true;
+      if (user.sopQuota <= 0) {
+          setError(`No SOPs left in quota. Please top up.`);
+          return false;
+      }
+      return true;
+  };
+
+  const deductQuota = (): boolean => {
+      if (!isAdmin && onUserUpdate) {
+          if (user.sopQuota <= 0) {
+              setError("No SOPs left in quota.");
+              return false;
+          }
+          storageService.updateQuotas(user.id, 0, -1);
+          onUserUpdate({ ...user, sopQuota: user.sopQuota - 1 });
+          return true;
+      }
+      return true;
+  };
 
   const handleGenerate = async () => {
     if (!topic) return;
-    if (!isAdmin && user.credits < CREDIT_COSTS.SOP) {
-        setError(`Insufficient credits.`);
-        return;
-    }
+    if (!checkQuota()) return;
+
     setIsGenerating(true);
     setError(null);
     try {
-      if (!isAdmin && onUserUpdate) {
-        storageService.deductCredits(user.id, CREDIT_COSTS.SOP, `SOP Gen: ${topic}`);
-        onUserUpdate({ ...user, credits: user.credits - CREDIT_COSTS.SOP });
+      if (!deductQuota()) {
+          setIsGenerating(false);
+          return;
       }
       const sop = await generateSOP(topic);
       setGeneratedSOP(sop);
@@ -77,7 +92,7 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
           <button onClick={() => setViewMode('create')} className={`px-4 py-2 rounded-lg text-sm font-bold ${viewMode === 'create' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'}`}>Create SOP</button>
           <button onClick={() => setViewMode('saved')} className={`px-4 py-2 rounded-lg text-sm font-bold ${viewMode === 'saved' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'}`}>Saved Library</button>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-800 rounded-full text-xs font-bold"><Wallet size={12}/> Credits: {user.credits}</div>
+        <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-800 rounded-full text-xs font-bold"><Wallet size={12}/> SOPs Left: {user.sopQuota}</div>
       </div>
 
       <div className="flex-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col transition-colors">
@@ -92,7 +107,7 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
                  </div>
                  {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg">{error}</div>}
                  <button onClick={handleGenerate} disabled={isGenerating || !topic} className="w-full py-3 bg-slate-900 text-white font-bold rounded-lg flex items-center justify-center gap-2 hover:opacity-90">
-                   {isGenerating ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />} Generate ({CREDIT_COSTS.SOP} CR)
+                   {isGenerating ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />} Generate (1 Quota)
                  </button>
                </div>
             </div>

@@ -2,9 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, KitchenWorkflowRequest, UserRole } from '../types';
 import { storageService } from '../services/storageService';
-import { generateKitchenWorkflow, hasValidApiKey } from '../services/geminiService';
-import { CREDIT_COSTS } from '../constants';
-import { GitMerge, Upload, FileVideo, Image as ImageIcon, CheckCircle2, Clock, Wallet, Loader2, PlayCircle, Eye, Edit3, Send, X, Trash2, ArrowLeft, Sparkles, AlertTriangle, Key } from 'lucide-react';
+import { generateKitchenWorkflow } from '../services/geminiService';
+import { GitMerge, Upload, FileVideo, Image as ImageIcon, CheckCircle2, Clock, Loader2, X, Trash2, ArrowLeft, Sparkles, AlertTriangle } from 'lucide-react';
 
 interface KitchenWorkflowProps {
     user: User;
@@ -63,21 +62,7 @@ export const KitchenWorkflow: React.FC<KitchenWorkflowProps> = ({ user, onUserUp
         e.preventDefault();
         if (!title || !description) return;
         
-        // Credit Check
-        if (!isAdmin) {
-            if (user.credits < CREDIT_COSTS.WORKFLOW) {
-                alert(`Insufficient credits. Need ${CREDIT_COSTS.WORKFLOW} CR.`);
-                return;
-            }
-            if (onUserUpdate) {
-                const success = storageService.deductCredits(user.id, CREDIT_COSTS.WORKFLOW, 'Kitchen Workflow Request');
-                if (success) {
-                    onUserUpdate({ ...user, credits: user.credits - CREDIT_COSTS.WORKFLOW });
-                } else {
-                    return;
-                }
-            }
-        }
+        // Note: Credit check removed for Kitchen Workflow
 
         setIsSubmitting(true);
         // Simulate upload delay
@@ -115,8 +100,6 @@ export const KitchenWorkflow: React.FC<KitchenWorkflowProps> = ({ user, onUserUp
     const generateDraft = async () => {
         if (!selectedRequest) return;
         
-        // Note: No key check here. Service falls back to mock if needed.
-
         setIsGenerating(true);
         setError(null);
         try {
@@ -176,10 +159,6 @@ export const KitchenWorkflow: React.FC<KitchenWorkflowProps> = ({ user, onUserUp
                         </button>
                     )}
                 </div>
-                <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 rounded-full text-xs font-bold">
-                    <Wallet size={12} fill="currentColor" />
-                    Credits: {user.credits}
-                </div>
             </div>
 
             {/* List View */}
@@ -224,7 +203,7 @@ export const KitchenWorkflow: React.FC<KitchenWorkflowProps> = ({ user, onUserUp
             {view === 'create' && (
                 <div className="max-w-2xl mx-auto w-full bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-8 overflow-y-auto transition-colors">
                     <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Request Kitchen Workflow</h2>
-                    <p className="text-slate-500 dark:text-slate-400 mb-6">Upload videos or images of your kitchen layout. Our experts (and AI) will design an optimized workflow for you. Cost: {CREDIT_COSTS.WORKFLOW} CR.</p>
+                    <p className="text-slate-500 dark:text-slate-400 mb-6">Upload videos or images of your kitchen layout. Our experts (and AI) will design an optimized workflow for you.</p>
                     
                     <form onSubmit={handleSubmitRequest} className="space-y-6">
                         <div>
@@ -297,7 +276,7 @@ export const KitchenWorkflow: React.FC<KitchenWorkflowProps> = ({ user, onUserUp
                                 disabled={isSubmitting || !title || files.length === 0}
                                 className="px-8 py-3 bg-slate-900 dark:bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-600 dark:hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2"
                             >
-                                {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
+                                {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : <GitMerge size={20} />}
                                 Submit Request
                             </button>
                         </div>

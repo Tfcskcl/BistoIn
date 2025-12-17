@@ -1,53 +1,35 @@
 
-import React, { useState, useEffect } from 'react';
-import { generateStrategy, generateImplementationPlan } from '../services/geminiService';
-import { StrategyReport, UserRole, User, ImplementationGuide, PlanType } from '../types';
-import { Send, Loader2, User as UserIcon, Briefcase, TrendingUp, HelpCircle, Play, LifeBuoy, X, BookOpen, UserCheck, Calendar, Sparkles, Target, AlertTriangle, ArrowUpRight, ArrowDownRight, Map, PieChart as PieChartIcon, ScatterChart as ScatterChartIcon, Wallet, TrendingDown, Users, Star, CheckCircle2, Phone, Award, Video, Building2 } from 'lucide-react';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, ScatterChart, Scatter, ZAxis } from 'recharts';
+import React, { useState } from 'react';
+import { generateStrategy } from '../services/geminiService';
+import { StrategyReport, User, PlanType } from '../types';
+import { Send, Loader2, User as UserIcon, Briefcase, TrendingUp, Sparkles, AlertTriangle, Wallet, Users, Star, CheckCircle2, Phone, Award, Video, Building2 } from 'lucide-react';
 import { storageService } from '../services/storageService';
 import { paymentService } from '../services/paymentService';
-import { CREDIT_COSTS } from '../constants';
 
 interface StrategyProps { user: User; onUserUpdate?: (user: User) => void; }
-interface ActionState { [key: number]: 'idle' | 'in_progress' | 'help_requested' | 'completed'; }
-const COLORS = { High: '#ef4444', Medium: '#f59e0b', Low: '#3b82f6', add: '#10b981', remove: '#ef4444' };
 
 const QUICK_PROMPTS = [
     { title: "Boost Customer Footfall", query: "Create a detailed marketing plan to increase customer footfall by 20% in the next 30 days. Focus on social media, local partnerships, and weekday promotions.", icon: Users, color: "text-blue-600 bg-blue-100" },
-    { title: "Reduce Food Cost", query: "Analyze my menu and suggest ways to reduce food cost by 5% without lowering quality. Focus on waste reduction and ingredient substitution.", icon: TrendingDown, color: "text-emerald-600 bg-emerald-100" },
-    { title: "Staff Retention", query: "Suggest an employee incentive program to reduce turnover and improve service quality.", icon: UserCheck, color: "text-purple-600 bg-purple-100" },
+    { title: "Reduce Food Cost", query: "Analyze my menu and suggest ways to reduce food cost by 5% without lowering quality. Focus on waste reduction and ingredient substitution.", icon: TrendingUp, color: "text-emerald-600 bg-emerald-100" }, // Icon changed for demo
+    { title: "Staff Retention", query: "Suggest an employee incentive program to reduce turnover and improve service quality.", icon: Users, color: "text-purple-600 bg-purple-100" },
     { title: "Menu Engineering", query: "Identify high-margin items and suggest how to promote them using menu psychology.", icon: Star, color: "text-amber-600 bg-amber-100" }
 ];
 
-export const Strategy: React.FC<StrategyProps> = ({ user, onUserUpdate }) => {
-  const [role, setRole] = useState<UserRole>(user.role);
+export const Strategy: React.FC<StrategyProps> = ({ user }) => {
   const [query, setQuery] = useState('');
   const [report, setReport] = useState<StrategyReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [actionStates, setActionStates] = useState<ActionState>({});
   
   // Payment State
   const [processingService, setProcessingService] = useState<'call' | 'onsite' | null>(null);
   
-  const checkCredits = (): boolean => {
-      if (user.role === UserRole.SUPER_ADMIN) return true;
-      if (user.credits < CREDIT_COSTS.STRATEGY) {
-          setError(`Insufficient Credits.`);
-          return false;
-      }
-      return true;
-  };
-
   const handleSend = async (textOverride?: string) => {
     const textToSend = textOverride || query;
-    if (!textToSend || !checkCredits()) return;
+    if (!textToSend) return;
     
-    if (user.role !== UserRole.SUPER_ADMIN && onUserUpdate) {
-        storageService.deductCredits(user.id, CREDIT_COSTS.STRATEGY, 'AI Strategy');
-        onUserUpdate({ ...user, credits: user.credits - CREDIT_COSTS.STRATEGY });
-    }
-
+    // NOTE: Removed Credit Check/Deduction - Strategy is now free/included
+    
     if (textOverride) setQuery(textOverride);
     setLoading(true);
     setReport(null);
@@ -76,7 +58,7 @@ export const Strategy: React.FC<StrategyProps> = ({ user, onUserUpdate }) => {
 
       await paymentService.initiatePayment(
           user,
-          PlanType.PRO, // Using PlanType generic for service payment
+          PlanType.FULL_SYSTEM, // Using PlanType generic for service payment
           amount,
           (paymentId) => {
               const serviceName = type === 'call' ? "Expert Consultation Call" : "On-site Implementation";
@@ -109,7 +91,6 @@ export const Strategy: React.FC<StrategyProps> = ({ user, onUserUpdate }) => {
             <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg"><UserIcon size={20} /></div>
             <div className="text-sm font-semibold text-slate-700 dark:text-slate-200 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">Viewing as: {user.role.replace('_', ' ')}</div>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-800 rounded-full text-xs font-bold"><Wallet size={12}/> Credits: {user.credits}</div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-50 dark:bg-slate-900 custom-scrollbar">
@@ -273,8 +254,6 @@ export const Strategy: React.FC<StrategyProps> = ({ user, onUserUpdate }) => {
                                 Book Call
                             </button>
                         </div>
-                        {/* Decorative Blob */}
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl -mr-10 -mt-10"></div>
                     </div>
 
                     {/* On-Site Option */}

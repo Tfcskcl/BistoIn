@@ -3,8 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, MenuGenerationRequest, UserRole, MenuStructure } from '../types';
 import { storageService } from '../services/storageService';
 import { generateMenu, cleanAndParseJSON, hasValidApiKey } from '../services/geminiService';
-import { CREDIT_COSTS } from '../constants';
-import { Sparkles, Loader2, Wallet, ArrowRight, BookOpen, Download, LayoutTemplate, Palette, Globe, DollarSign, CloudSun, AlertCircle } from 'lucide-react';
+import { Sparkles, Loader2, BookOpen, Download, LayoutTemplate, Palette, DollarSign, CloudSun, AlertCircle } from 'lucide-react';
 
 interface MenuGeneratorProps {
     user: User;
@@ -13,8 +12,6 @@ interface MenuGeneratorProps {
 
 // Sub-component: Menu Designer Renderer
 const MenuDesigner: React.FC<{ data: MenuStructure, theme: string }> = ({ data, theme }) => {
-    const containerRef = useRef<HTMLDivElement>(null);
-
     const baseStyles = "w-full min-h-[800px] p-12 bg-white text-slate-900 shadow-2xl relative overflow-hidden print:shadow-none print:w-full";
     
     // Theme configurations
@@ -41,10 +38,10 @@ const MenuDesigner: React.FC<{ data: MenuStructure, theme: string }> = ({ data, 
             itemName: "text-xl font-bold uppercase tracking-widest mb-1",
             itemPrice: "text-lg font-bold text-emerald-700 mt-1",
             itemDesc: "text-sm text-slate-600 italic font-serif",
-            tag: "hidden" // Classic menus often minimal
+            tag: "hidden" 
         },
         'Rustic': {
-            wrapper: `${baseStyles} font-sans bg-[#2a2a2a] text-[#e0e0e0]`, // Dark background
+            wrapper: `${baseStyles} font-sans bg-[#2a2a2a] text-[#e0e0e0]`, 
             header: "text-5xl font-bold text-amber-500 mb-2 uppercase tracking-widest text-center",
             tagline: "text-center text-stone-400 mb-12 font-mono text-sm",
             sectionTitle: "text-2xl font-bold text-amber-500 mb-6 border-b border-stone-600 pb-2 uppercase",
@@ -131,7 +128,7 @@ export const MenuGenerator: React.FC<MenuGeneratorProps> = ({ user, onUserUpdate
         e.preventDefault();
         setError(null);
         if (!formData.restaurantName) { setError("Name required"); return; }
-        if (!isAdmin && user.credits < CREDIT_COSTS.MENU_GEN) { setError("Insufficient credits"); return; }
+        // Note: Removed Credit Check - Menu Gen is included
 
         setLoading(true);
         setGeneratedResult(null);
@@ -145,10 +142,6 @@ export const MenuGenerator: React.FC<MenuGeneratorProps> = ({ user, onUserUpdate
         };
 
         try {
-            if (!isAdmin && onUserUpdate) {
-                storageService.deductCredits(user.id, CREDIT_COSTS.MENU_GEN, 'Menu Generation');
-                onUserUpdate({ ...user, credits: user.credits - CREDIT_COSTS.MENU_GEN });
-            }
             const responseText = await generateMenu(request);
             
             // Try to parse the response
@@ -211,7 +204,6 @@ export const MenuGenerator: React.FC<MenuGeneratorProps> = ({ user, onUserUpdate
                     <button onClick={() => setView('create')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${view === 'create' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>Designer</button>
                     <button onClick={() => setView('list')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${view === 'list' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>History</button>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 rounded-full text-xs font-bold"><Wallet size={12}/> Credits: {user.credits}</div>
             </div>
 
             {view === 'create' && (

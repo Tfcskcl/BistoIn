@@ -75,47 +75,72 @@ Your capabilities include:
 Tone: Professional, helpful, concise, and industry-focused.
 `;
 
-export const CREDIT_COSTS = {
-    RECIPE: 10,
-    SOP: 15,
-    STRATEGY: 12,
-    VIDEO: 50,
-    IMAGE: 20,
-    EXPERT_CONNECT: 50,
-    WORKFLOW: 50,
-    MENU_GEN: 40
+// Dynamic Costing - Replaced with Direct Package Pricing
+export const PACKAGES = {
+    STARTER: {
+        id: 'starter_pack',
+        name: 'Starter Pack',
+        price: 99,
+        recipeQuota: 2,
+        sopQuota: 0,
+        desc: 'Generate 2 AI Recipes'
+    },
+    PAY_AS_YOU_GO: {
+        id: 'payg_pack',
+        name: 'Pay As You Go',
+        price: 199,
+        recipeQuota: 2,
+        sopQuota: 1,
+        desc: '2 Recipes + 1 SOP'
+    }
 };
 
-export const RECHARGE_RATE = 10; // INR per credit
-export const MIN_RECHARGE_CREDITS = 20;
+export const CREDIT_COSTS = {
+    RECIPE: 0, // Deprecated, using Quota
+    SOP: 0,    // Deprecated, using Quota
+    // Other features are currently free or bundled
+    STRATEGY: 0,
+    VIDEO: 0,
+    IMAGE: 0,
+    EXPERT_CONNECT: 0,
+    WORKFLOW: 0,
+    MENU_GEN: 0
+};
+
+export const SETUP_FEE = 99;
 
 export const PLANS = {
   [PlanType.FREE]: {
-    name: 'Basic Starter',
-    description: 'Entry-level plan for single outlets.',
-    price: 199,
-    quarterlyPrice: 539, // Approx 10% discount
-    features: ['25 Credits / Month', 'Recipe Costing (10cr)', 'Standard SOPs (15cr)', 'Strategy Add-on Available'],
-    color: 'slate',
-    monthlyCredits: 25
+    name: 'Pay As You Go',
+    description: 'No monthly fee. Buy Recipe & SOP packs as needed.',
+    price: 0,
+    quarterlyPrice: 0, 
+    features: ['Access to Recipe Generator', 'SOP Creation Tool', 'Standard Dashboard', 'Community Support'],
+    color: 'slate'
   },
-  [PlanType.PRO]: {
-    name: 'Pro Growth',
-    description: 'For growing restaurants needing regular operational updates.',
-    price: 3999,
-    quarterlyPrice: 10799, 
-    features: ['500 Credits / Month', 'Advanced Recipe Gen', 'SOP Studio Access', 'Strategy Add-on Available', 'Priority Support'],
-    color: 'emerald',
-    monthlyCredits: 500
-  },
-  [PlanType.PRO_PLUS]: {
-    name: 'Pro+ Operations',
-    description: 'High-volume intelligence for scaling F&B brands.',
+  [PlanType.OPS_MANAGER]: {
+    name: 'Ops Manager',
+    description: 'Full CCTV Intelligence & Workflow Automation.',
     price: 24999,
-    quarterlyPrice: 67499,
-    features: ['2600 Credits / Month', 'Included AI Strategy', 'Multi-outlet Management', 'Dedicated Account Manager'],
-    color: 'purple',
-    monthlyCredits: 2600
+    quarterlyPrice: 71247, // 5% discount
+    features: ['Unlimited AI Recipes & SOPs', 'Live CCTV AI Monitoring', 'Real-time Wastage Alerts', 'Productivity Tracking'],
+    color: 'emerald'
+  },
+  [PlanType.FULL_SYSTEM]: {
+    name: 'Full System',
+    description: 'Complete OS for High-Volume Outlets.',
+    price: 49999,
+    quarterlyPrice: 134997, // 10% discount
+    features: ['Everything in Ops Manager', 'Advanced Strategy AI', 'Marketing Studio Pro', 'Inventory Auto-Sync', 'Dedicated Account Manager'],
+    color: 'purple'
+  },
+  [PlanType.ENTERPRISE]: {
+    name: 'Enterprise Cluster',
+    description: 'For Multi-Brand/Chain Operations (Up to 5 Outlets).',
+    price: 149999,
+    quarterlyPrice: 404997,
+    features: ['Centralized Command Center', 'Brand-Specific SOPs', 'Offline/Local Server Option', 'Custom API Integrations', '24/7 Priority Support'],
+    color: 'yellow'
   }
 };
 

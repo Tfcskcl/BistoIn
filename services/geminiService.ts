@@ -31,7 +31,8 @@ const generateMockRecipe = (name: string): RecipeCard => ({
     ingredients: [{ ingredient_id: '1', name: 'Mock Ingredient', qty: '100g', cost_per_unit: 10, cost_per_serving: 5 }],
     yield: 1, preparation_steps: ['Mix ingredients.', 'Cook well.'], equipment_needed: ['Pan'],
     portioning_guideline: '1 bowl', allergens: [], shelf_life_hours: 24, food_cost_per_serving: 50,
-    suggested_selling_price: 150, tags: ['Mock'], human_summary: 'A generated recipe.', confidence: 'High'
+    suggested_selling_price: 150, tags: ['Mock'], human_summary: 'A generated recipe.', confidence: 'High',
+    cuisine: 'Fusion'
 });
 
 const generateMockCCTVAnalysis = (): CCTVAnalysisResult => ({

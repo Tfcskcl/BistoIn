@@ -1,11 +1,10 @@
 
 import React, { useState } from 'react';
-import { ArrowRight, AlertCircle, CheckCircle2, ArrowLeft, Mail, KeyRound, Store, MapPin, ChefHat, ShieldCheck, User as UserIcon, Shield, FileText, Upload, Loader2, Sparkles, Map } from 'lucide-react';
+import { ArrowRight, AlertCircle, ArrowLeft, Mail, KeyRound, User as UserIcon, Loader2, CheckCircle2 } from 'lucide-react';
 import { User, UserRole, PlanType } from '../types';
 import { authService } from '../services/authService';
 import { storageService } from '../services/storageService';
 import { Logo } from '../components/Logo';
-import { verifyLocationWithMaps } from '../services/geminiService';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -20,43 +19,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onBack }) => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   
-  // New fields for restaurant profile
-  const [restaurantName, setRestaurantName] = useState('');
-  const [location, setLocation] = useState('');
-  const [cuisineType, setCuisineType] = useState('');
-  
-  // Maps Verification State
-  const [verifyingLoc, setVerifyingLoc] = useState(false);
-  const [locDetails, setLocDetails] = useState<string | null>(null);
-  
-  // Compliance & Menu Fields
-  const [gstNumber, setGstNumber] = useState('');
-  const [fssaiNumber, setFssaiNumber] = useState('');
-  const [menuFileName, setMenuFileName] = useState('');
-
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const handleMenuUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files && e.target.files[0]) {
-          setMenuFileName(e.target.files[0].name);
-      }
-  };
-
-  const handleVerifyLocation = async () => {
-      if (!location.trim()) return;
-      setVerifyingLoc(true);
-      setLocDetails(null);
-      try {
-          const result = await verifyLocationWithMaps(location);
-          setLocDetails(result);
-      } catch (e) {
-          setLocDetails("Verification unavailable.");
-      } finally {
-          setVerifyingLoc(false);
-      }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,24 +55,26 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onBack }) => {
 
         onLogin(user);
       } else if (mode === 'signup') {
-        // Create new user with sanitized inputs
+        // Step 1: New Customer Signup (Account Creation Only)
+        // Detailed outlet info is now moved to Onboarding Step 2
         const newUser: User = {
           id: '', // Will be set by Firebase UID or Mock service
           name: name.trim(),
           email: email.trim(),
-          role: UserRole.OWNER, // Forced to Owner/F&B Entrepreneur
-          plan: PlanType.PRO_PLUS, // Give Full Access initially
-          restaurantName: restaurantName.trim(),
-          location: location.trim(),
-          cuisineType: cuisineType.trim(),
+          role: UserRole.OWNER,
+          plan: PlanType.FREE, // Default to Free until activation
           joinedDate: new Date().toISOString().split('T')[0],
-          gstNumber: gstNumber.trim(),
-          fssaiNumber: fssaiNumber.trim(),
-          menuFile: menuFileName,
+          // Default empty profile to be filled in Wizard
+          restaurantName: '', 
+          location: '',
+          cuisineType: '',
           isTrial: true,
+          setupComplete: false, // Forces Onboarding Wizard
           queriesUsed: 0,
           queryLimit: 10,
-          credits: 50 // Updated: Default starting credits for 3-day trial
+          credits: 50,
+          recipeQuota: 10,
+          sopQuota: 5
         };
         const user = await authService.signup(newUser, password);
         onLogin(user);
@@ -158,7 +125,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onBack }) => {
             </div>
           <p className="text-slate-400 mt-2 text-sm">
             {mode === 'login' ? 'Sign in to access your dashboard' : 
-             mode === 'signup' ? 'Start your 3-Day Free Trial' : 
+             mode === 'signup' ? 'Create your account to get started' : 
              'Reset your password'}
           </p>
         </div>
@@ -239,120 +206,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onBack }) => {
               </div>
             )}
 
-            {/* Business Details - Signup Only */}
-            {mode === 'signup' && (
-                <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-lg border border-blue-100 dark:border-blue-900/30 space-y-4 animate-fade-in">
-                    <div className="flex items-center gap-2 mb-2">
-                        <Store size={16} className="text-blue-600 dark:text-blue-400" />
-                        <p className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">Business Profile</p>
-                    </div>
-                    <div className="space-y-3">
-                        <input 
-                            type="text" 
-                            required
-                            value={restaurantName}
-                            onChange={e => setRestaurantName(e.target.value)}
-                            placeholder="Restaurant Name (e.g. Spicy Wok)"
-                            className="w-full px-3 py-2 text-sm rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-white outline-none focus:border-blue-500"
-                        />
-                        <div className="flex gap-3">
-                            <div className="flex-1 space-y-2">
-                                <div className="relative">
-                                    <MapPin size={14} className="absolute left-2 top-2.5 text-slate-400"/>
-                                    <input 
-                                        type="text" 
-                                        required
-                                        value={location}
-                                        onChange={e => setLocation(e.target.value)}
-                                        placeholder="City / Area"
-                                        className="w-full pl-7 pr-3 py-2 text-sm rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-white outline-none focus:border-blue-500"
-                                    />
-                                </div>
-                                <button 
-                                    type="button" 
-                                    onClick={handleVerifyLocation}
-                                    disabled={verifyingLoc || !location}
-                                    className="text-[10px] flex items-center gap-1 text-blue-600 hover:text-blue-700 font-bold bg-white dark:bg-slate-800 px-2 py-1 rounded border border-blue-100 dark:border-slate-700"
-                                >
-                                    {verifyingLoc ? <Loader2 size={10} className="animate-spin"/> : <Map size={10} />} 
-                                    Verify with Maps
-                                </button>
-                                {locDetails && (
-                                    <div className="text-[10px] text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 leading-relaxed animate-fade-in">
-                                        <span className="font-bold text-blue-600 block mb-1">Google Maps Data:</span>
-                                        {locDetails}
-                                    </div>
-                                )}
-                            </div>
-                             <div className="flex-1 relative">
-                                <ChefHat size={14} className="absolute left-2 top-2.5 text-slate-400"/>
-                                <input 
-                                    type="text" 
-                                    required
-                                    value={cuisineType}
-                                    onChange={e => setCuisineType(e.target.value)}
-                                    placeholder="Cuisine Type"
-                                    className="w-full pl-7 pr-3 py-2 text-sm rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-white outline-none focus:border-blue-500"
-                                />
-                            </div>
-                        </div>
-
-                        {/* GST & FSSAI */}
-                        <div className="flex gap-3">
-                            <input 
-                                type="text" 
-                                value={gstNumber}
-                                onChange={e => setGstNumber(e.target.value)}
-                                placeholder="GST No (Optional)"
-                                className="w-1/2 px-3 py-2 text-sm rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-white outline-none focus:border-blue-500"
-                            />
-                             <input 
-                                type="text" 
-                                value={fssaiNumber}
-                                onChange={e => setFssaiNumber(e.target.value)}
-                                placeholder="FSSAI No (Optional)"
-                                className="w-1/2 px-3 py-2 text-sm rounded border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-white outline-none focus:border-blue-500"
-                            />
-                        </div>
-
-                        {/* Menu Upload */}
-                         <div className="relative border border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-3 hover:bg-white/50 transition-colors">
-                            <input 
-                                type="file" 
-                                onChange={handleMenuUpload}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                accept=".pdf,.jpg,.png"
-                            />
-                            <div className="flex items-center justify-center gap-2 text-slate-500 dark:text-slate-400">
-                                {menuFileName ? (
-                                    <span className="text-sm font-bold text-emerald-600 flex items-center gap-1">
-                                        <CheckCircle2 size={14} /> {menuFileName}
-                                    </span>
-                                ) : (
-                                    <>
-                                        <Upload size={14} />
-                                        <span className="text-xs">Upload Menu (PDF/Img)</span>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Trial Offer Banner for Signup */}
-            {mode === 'signup' && (
-                <div className="bg-emerald-50 dark:bg-emerald-900/20 p-3 rounded-lg border border-emerald-100 dark:border-emerald-800 text-center animate-fade-in">
-                    <p className="text-xs font-bold text-emerald-800 dark:text-emerald-400 uppercase tracking-wide mb-1">
-                        Free Trial Included
-                    </p>
-                    <p className="text-sm text-emerald-700 dark:text-emerald-300">
-                        Get instant full access for 3 Days. <br/>
-                        <span className="font-bold">50 Credits</span> loaded to your wallet.
-                    </p>
-                </div>
-            )}
-
             <button 
               type="submit" 
               disabled={loading}
@@ -364,7 +217,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onBack }) => {
                 </>
               ) : (
                 mode === 'login' ? 'Login' : 
-                mode === 'signup' ? 'Start Free Trial' : 
+                mode === 'signup' ? 'Create Account' : 
                 'Send Reset Link'
               )} 
               {!loading && (mode === 'forgot' ? <Mail size={18} /> : <ArrowRight size={18} />)}
@@ -387,7 +240,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onBack }) => {
                     onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')} 
                     className="ml-1 text-emerald-600 dark:text-emerald-400 font-bold hover:text-emerald-700 transition-colors"
                 >
-                    {mode === 'login' ? 'Start Trial' : 'Login'}
+                    {mode === 'login' ? 'Signup' : 'Login'}
                 </button>
               </p>
             )}

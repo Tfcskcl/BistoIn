@@ -1,6 +1,6 @@
 
 import { RecipeCard, SOP, AppNotification, UserRole, POSChangeRequest, MenuItem, PlanConfig, PlanType, RecipeRequest, SOPRequest, MarketingRequest, CreditTransaction, SocialStats, KitchenWorkflowRequest, MenuGenerationRequest, InventoryItem, OnboardingState } from '../types';
-import { MOCK_MENU, MOCK_SALES_DATA, MOCK_INGREDIENT_PRICES, PLANS as DEFAULT_PLANS } from '../constants';
+import { MOCK_MENU, MOCK_SALES_DATA, PLANS as DEFAULT_PLANS } from '../constants';
 import { ingredientService } from './ingredientService';
 
 const getKey = (userId: string, key: string) => `bistro_${userId}_${key}`;
@@ -26,7 +26,8 @@ const WELCOME_NOTIFICATION: AppNotification = {
     date: new Date().toISOString()
 };
 
-const MOCK_INVENTORY: InventoryItem[] = [
+// Mock inventory removed to constants to avoid duplication but kept mock logic here for safety
+const MOCK_INV: InventoryItem[] = [
     { id: 'inv_1', name: 'Arborio Rice', category: 'Dry Goods', currentStock: 12, unit: 'kg', costPerUnit: 300, parLevel: 10, supplier: 'Metro Cash & Carry', lastUpdated: new Date().toISOString() },
     { id: 'inv_2', name: 'Truffle Oil', category: 'Pantry', currentStock: 0.5, unit: 'l', costPerUnit: 1800, parLevel: 1, supplier: 'Gourmet Imports', lastUpdated: new Date().toISOString() },
     { id: 'inv_3', name: 'Chicken Breast', category: 'Meat', currentStock: 15, unit: 'kg', costPerUnit: 250, parLevel: 20, supplier: 'Fresh Meats Co', lastUpdated: new Date().toISOString() },
@@ -75,28 +76,25 @@ export const storageService = {
         return stored ? JSON.parse(stored) : DEFAULT_PLANS;
     },
 
-    // --- CREDITS ---
-    getUserCredits: (userId: string): number => {
-        return storageService.getItem<number>(userId, 'credits_balance', 0);
+    // --- QUOTAS (Replaces Credits) ---
+    getUserQuotas: (userId: string): { recipe: number; sop: number } => {
+        return {
+            recipe: storageService.getItem<number>(userId, 'quota_recipe', 0),
+            sop: storageService.getItem<number>(userId, 'quota_sop', 0)
+        };
     },
 
-    saveUserCredits: (userId: string, credits: number) => {
-        storageService.setItem(userId, 'credits_balance', credits);
+    updateQuotas: (userId: string, recipeDelta: number, sopDelta: number) => {
+        const current = storageService.getUserQuotas(userId);
+        storageService.setItem(userId, 'quota_recipe', Math.max(0, current.recipe + recipeDelta));
+        storageService.setItem(userId, 'quota_sop', Math.max(0, current.sop + sopDelta));
     },
 
-    deductCredits: (userId: string, amount: number, description: string): boolean => {
-        const current = storageService.getUserCredits(userId);
-        if (current < amount) return false;
-        
-        const newBalance = current - amount;
-        storageService.saveUserCredits(userId, newBalance);
-        return true;
-    },
-
-    addCredits: (userId: string, amount: number, description: string) => {
-        const current = storageService.getUserCredits(userId);
-        storageService.saveUserCredits(userId, current + amount);
-    },
+    // --- CREDITS (Legacy/Deprecated - kept for safe fallbacks) ---
+    getUserCredits: (userId: string): number => 0,
+    saveUserCredits: (userId: string, credits: number) => {},
+    deductCredits: (userId: string, amount: number, description: string): boolean => true, // Always return true for now
+    addCredits: (userId: string, amount: number, description: string) => {},
 
     // --- INVENTORY ---
     getInventory: (userId: string): InventoryItem[] => {
@@ -165,8 +163,6 @@ export const storageService = {
             status: 'pending',
             requestDate: new Date().toISOString()
         };
-        // In a real app, this would go to a specific "Tasks" store. 
-        // For now we simulate it by adding a notification.
         storageService.sendSystemNotification({
             id: `task_${Date.now()}`,
             title: 'Training Task Created',
@@ -213,8 +209,11 @@ export const storageService = {
         if (!localStorage.getItem(getKey(userId, 'seeded'))) {
             storageService.setItem(userId, 'menu', MOCK_MENU);
             storageService.setItem(userId, 'sales', MOCK_SALES_DATA);
-            storageService.setItem(userId, 'inventory', MOCK_INVENTORY);
+            storageService.setItem(userId, 'inventory', MOCK_INV);
             ingredientService.seedDefaults(userId);
+            // Give demo user some quota
+            storageService.setItem(userId, 'quota_recipe', 5);
+            storageService.setItem(userId, 'quota_sop', 2);
             localStorage.setItem(getKey(userId, 'seeded'), 'true');
         }
     },
@@ -226,7 +225,6 @@ export const storageService = {
     getAllSOPRequests: (): SOPRequest[] => [],
     
     getAllMarketingRequests: (): MarketingRequest[] => {
-        // Mock implementation to return stored marketing requests from a global key
         const stored = localStorage.getItem('bistro_marketing_requests');
         return stored ? JSON.parse(stored) : [];
     },

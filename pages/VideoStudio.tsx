@@ -1,10 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { User, UserRole, MarketingRequest } from '../types';
-import { generateMarketingVideo, generateMarketingImage, hasValidApiKey } from '../services/geminiService';
+import { User, MarketingRequest } from '../types';
+import { generateMarketingVideo, generateMarketingImage } from '../services/geminiService';
 import { storageService } from '../services/storageService';
-import { CREDIT_COSTS } from '../constants';
-import { Clapperboard, Image as ImageIcon, Loader2, PlayCircle, Download, RefreshCw, Upload, CheckCircle2, Clock, Wallet, Sparkles, Key, AlertCircle, History, Maximize2, X } from 'lucide-react';
+import { Clapperboard, Image as ImageIcon, Loader2, PlayCircle, Download, Upload, History, Maximize2, X, Sparkles, AlertCircle } from 'lucide-react';
 
 interface VideoStudioProps {
   user: User;
@@ -53,28 +52,14 @@ export const VideoStudio: React.FC<VideoStudioProps> = ({ user }) => {
   const handleGenerate = async () => {
       if (!prompt && !referenceImage) return;
       
-      // Note: We no longer block if no key is found. 
-      // The service will handle missing keys by returning a demo/mock response.
+      // Note: Credit deduction removed for video/image gen as per new plan structure
       
-      const cost = mediaType === 'video' ? CREDIT_COSTS.VIDEO : CREDIT_COSTS.IMAGE;
-      
-      if (user.credits < cost) {
-          setError(`Insufficient credits. Required: ${cost}, Balance: ${user.credits}`);
-          return;
-      }
-
       setIsGenerating(true);
       setError(null);
       setCurrentResult(null);
 
       try {
-          // 1. Deduct Credits
-          const success = storageService.deductCredits(user.id, cost, `${mediaType === 'video' ? 'Video' : 'Image'} Generation`);
-          if (!success) {
-              throw new Error("Credit deduction failed.");
-          }
-
-          // 2. Call AI Service
+          // 1. Call AI Service
           let url = '';
           if (mediaType === 'video') {
               url = await generateMarketingVideo(referenceImage ? [referenceImage] : [], prompt, aspectRatio);
@@ -82,7 +67,7 @@ export const VideoStudio: React.FC<VideoStudioProps> = ({ user }) => {
               url = await generateMarketingImage(prompt, aspectRatio);
           }
 
-          // 3. Save Request
+          // 2. Save Request
           const newReq: MarketingRequest = {
               id: `mkt_${Date.now()}`,
               userId: user.id,
@@ -134,10 +119,6 @@ export const VideoStudio: React.FC<VideoStudioProps> = ({ user }) => {
             >
                 <History size={16} /> Gallery
             </button>
-        </div>
-        <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 rounded-full text-xs font-bold">
-            <Wallet size={12} fill="currentColor" />
-            Credits: {user.credits}
         </div>
       </div>
 
@@ -249,7 +230,7 @@ export const VideoStudio: React.FC<VideoStudioProps> = ({ user }) => {
                           className="w-full py-3 bg-slate-900 dark:bg-emerald-600 text-white font-bold rounded-xl hover:opacity-90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                       >
                           {isGenerating ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={18} />}
-                          {isGenerating ? 'Generating...' : `Generate ${mediaType === 'video' ? 'Video' : 'Image'} (${mediaType === 'video' ? CREDIT_COSTS.VIDEO : CREDIT_COSTS.IMAGE} CR)`}
+                          {isGenerating ? 'Generating...' : `Generate ${mediaType === 'video' ? 'Video' : 'Image'}`}
                       </button>
                   </div>
               </div>

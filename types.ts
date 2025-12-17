@@ -39,6 +39,7 @@ export interface RecipeCard extends MenuItem {
   prep_time_minutes?: number;
   cook_time_minutes?: number;
   total_time_minutes?: number;
+  cuisine?: string;
 }
 
 export interface RecipeRequest {
@@ -169,13 +170,15 @@ export interface ImplementationGuide {
 export enum UserRole {
   OWNER = 'OWNER',
   ADMIN = 'ADMIN',
-  SUPER_ADMIN = 'SUPER_ADMIN'
+  SUPER_ADMIN = 'SUPER_ADMIN',
+  ENTERPRISE = 'ENTERPRISE'
 }
 
 export enum PlanType {
-  FREE = 'FREE',
-  PRO = 'PRO',
-  PRO_PLUS = 'PRO_PLUS'
+  FREE = 'FREE', // Used for pay-as-you-go setup
+  OPS_MANAGER = 'OPS_MANAGER',
+  FULL_SYSTEM = 'FULL_SYSTEM',
+  ENTERPRISE = 'ENTERPRISE'
 }
 
 export interface PlanConfig {
@@ -185,7 +188,6 @@ export interface PlanConfig {
     quarterlyPrice: number;
     features: string[];
     color: string;
-    monthlyCredits: number;
 }
 
 export interface CreditTransaction {
@@ -224,16 +226,19 @@ export interface User {
   fssaiNumber?: string;
   menuFile?: string;
 
-  // Usage Tracking & Credits
-  credits: number;
+  // Usage Tracking (Replaced Credits with Quotas)
+  recipeQuota: number;
+  sopQuota: number;
   
   // Setup Status
   setupComplete?: boolean;
+  setupFeePaid?: boolean;
   
   // Legacy trial fields (deprecated but kept for compatibility)
   queriesUsed?: number;
   queryLimit?: number; 
   isTrial?: boolean;
+  credits: number; // Keeping for legacy type safety but treating as 0
 }
 
 export enum AppView {

@@ -26,9 +26,11 @@ const DEMO_USERS: (User & {password: string})[] = [
     email: 'owner@bistro.com',
     password: 'pass',
     role: UserRole.OWNER,
-    plan: PlanType.PRO_PLUS,
+    plan: PlanType.FULL_SYSTEM,
     restaurantName: "The Golden Spoon",
-    credits: 2600,
+    credits: 0,
+    recipeQuota: 100, // Demo user gets high quota
+    sopQuota: 50,
     setupComplete: true
   }
 ];
@@ -43,7 +45,9 @@ export const authService = {
     const stored = localStorage.getItem(STORAGE_USER_KEY);
     if (stored) {
         const user = JSON.parse(stored);
-        user.credits = storageService.getUserCredits(user.id) || user.credits;
+        const quotas = storageService.getUserQuotas(user.id);
+        user.recipeQuota = quotas.recipe;
+        user.sopQuota = quotas.sop;
         callback(user);
     } else {
         callback(null);
@@ -55,7 +59,7 @@ export const authService = {
     DEMO_USERS.forEach(d => {
         if (!mockUsers[d.id]) {
             mockUsers[d.id] = d;
-            storageService.saveUserCredits(d.id, d.credits);
+            storageService.updateQuotas(d.id, d.recipeQuota, d.sopQuota);
         }
     });
     localStorage.setItem(MOCK_DB_USERS_KEY, JSON.stringify(mockUsers));
@@ -78,7 +82,9 @@ export const authService = {
     
     const safeUser = { ...user };
     delete (safeUser as any).password;
-    safeUser.credits = storageService.getUserCredits(safeUser.id) || safeUser.credits;
+    const quotas = storageService.getUserQuotas(safeUser.id);
+    safeUser.recipeQuota = quotas.recipe;
+    safeUser.sopQuota = quotas.sop;
     
     localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(safeUser));
     notifyObservers(safeUser);
@@ -106,7 +112,8 @@ export const authService = {
       const uid = `usr_${Date.now()}`;
       const newUser = {...u, id: uid};
       saveMockUser(newUser, p);
-      storageService.saveUserCredits(uid, u.credits);
+      // Initialize with 0 or demo quotas
+      storageService.updateQuotas(uid, u.recipeQuota, u.sopQuota);
       localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(newUser));
       notifyObservers(newUser);
       return newUser;

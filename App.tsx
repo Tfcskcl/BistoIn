@@ -15,6 +15,7 @@ import { KitchenWorkflow } from './pages/KitchenWorkflow';
 import { MenuGenerator } from './pages/MenuGenerator';
 import { InventoryManager } from './pages/InventoryManager'; 
 import { CCTVAnalytics } from './pages/CCTVAnalytics';
+import { Legal } from './pages/Legal';
 import OnboardingWizard from './components/OnboardingWizard';
 import { AppView, User } from './types';
 import { authService } from './services/authService';
@@ -23,6 +24,7 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
   const [showLogin, setShowLogin] = useState(false);
+  const [legalPage, setLegalPage] = useState<'terms' | 'privacy' | 'refund' | 'shipping' | null>(null);
   const [theme, setTheme] = useState<'light'|'dark'>('light');
 
   useEffect(() => {
@@ -37,11 +39,16 @@ function App() {
       }
   };
 
-  if (!user && !showLogin) return <Landing onGetStarted={() => setShowLogin(true)} />;
+  // Priority Render: Legal Pages (Accessible without login)
+  if (legalPage) {
+      return <Legal docType={legalPage} onBack={() => setLegalPage(null)} />;
+  }
+
+  if (!user && !showLogin) return <Landing onGetStarted={() => setShowLogin(true)} onOpenLegal={(page) => setLegalPage(page as any)} />;
   if (!user && showLogin) return <Login onLogin={() => setShowLogin(false)} onBack={() => setShowLogin(false)} />;
 
   if (user && !user.setupComplete) {
-      return <OnboardingWizard onComplete={handleOnboardingComplete} />;
+      return <OnboardingWizard onComplete={handleOnboardingComplete} onExit={authService.logout} />;
   }
 
   return (
