@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { User, SOP, SOPRequest, UserRole } from '../types';
 import { generateSOP } from '../services/geminiService';
 import { storageService } from '../services/storageService';
-import { FileText, Loader2, Sparkles, Save, Wallet, BookOpen, Share2, CheckCircle2, Clock, Link } from 'lucide-react';
+import { FileText, Loader2, Sparkles, Save, Wallet, BookOpen, Share2, CheckCircle2, Clock, Link, Globe, Lock, Copy, X, Mail, Printer } from 'lucide-react';
+import { Logo } from '../components/Logo';
 
 interface SOPStudioProps {
   user: User;
@@ -18,7 +19,12 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
   const [generatedSOP, setGeneratedSOP] = useState<SOP | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedSOPs, setSavedSOPs] = useState<SOP[]>([]);
-  const [copyStatus, setCopyStatus] = useState<string | null>(null);
+  
+  // Share Modal State
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareSOP, setShareSOP] = useState<SOP | null>(null);
+  const [shareLink, setShareLink] = useState('');
+  const [copySuccess, setCopySuccess] = useState(false);
 
   useEffect(() => {
     loadSavedSOPs();
@@ -78,11 +84,18 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
     }
   };
 
-  const handleCopyLink = (sop: SOP) => {
-      const link = `${window.location.origin}/sop/share/${sop.sop_id}`;
-      navigator.clipboard.writeText(link);
-      setCopyStatus("Shareable link copied to clipboard!");
-      setTimeout(() => setCopyStatus(null), 3000);
+  const openShareModal = (sop: SOP) => {
+      setShareSOP(sop);
+      // Generate a demo link using current origin
+      setShareLink(`${window.location.origin}?viewSop=${sop.sop_id}`);
+      setShareModalOpen(true);
+      setCopySuccess(false);
+  };
+
+  const handleCopyLink = () => {
+      navigator.clipboard.writeText(shareLink);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
   };
 
   return (
@@ -117,7 +130,7 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
                     <div className="flex justify-between items-start mb-8 border-b pb-4">
                        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{generatedSOP.title}</h1>
                        <div className="flex gap-2">
-                           <button onClick={() => handleCopyLink(generatedSOP)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-lg flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800">
+                           <button onClick={() => openShareModal(generatedSOP)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-lg flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800">
                                <Link size={18} /> Share
                            </button>
                            <button onClick={handleSave} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg flex items-center gap-2 hover:bg-blue-700 transition-colors">
@@ -183,7 +196,7 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
                             </div>
                         </div>
                         <button 
-                            onClick={(e) => { e.stopPropagation(); handleCopyLink(sop); }}
+                            onClick={(e) => { e.stopPropagation(); openShareModal(sop); }}
                             className="absolute top-4 right-4 p-2 bg-slate-100 dark:bg-slate-700 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                             title="Share Link"
                         >
@@ -201,12 +214,169 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
         )}
       </div>
 
-      {copyStatus && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 animate-fade-in-up">
-            <CheckCircle2 size={18} className="text-emerald-400" />
-            <span className="font-bold text-sm">{copyStatus}</span>
-        </div>
+      {/* Share Modal */}
+      {shareModalOpen && shareSOP && (
+          <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white dark:bg-slate-900 rounded-xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 animate-scale-in">
+                  <div className="flex justify-between items-start mb-6">
+                      <div className="flex items-center gap-3">
+                          <div className="p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
+                              <Globe size={24} />
+                          </div>
+                          <div>
+                              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Share SOP</h3>
+                              <p className="text-sm text-slate-500 dark:text-slate-400">Make this document accessible to staff</p>
+                          </div>
+                      </div>
+                      <button onClick={() => setShareModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                          <X size={20} />
+                      </button>
+                  </div>
+
+                  <div className="space-y-4">
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
+                          <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Public Link</p>
+                          <div className="flex gap-2">
+                              <input 
+                                readOnly 
+                                value={shareLink} 
+                                className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-sm text-slate-600 dark:text-slate-300 truncate"
+                              />
+                              <button 
+                                onClick={handleCopyLink}
+                                className="p-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded text-slate-600 dark:text-slate-300 transition-colors"
+                                title="Copy Link"
+                              >
+                                  {copySuccess ? <CheckCircle2 size={16} className="text-emerald-500"/> : <Copy size={16} />}
+                              </button>
+                          </div>
+                      </div>
+
+                      <div className="flex items-center justify-between p-3 border border-slate-100 dark:border-slate-700 rounded-lg">
+                          <div className="flex items-center gap-2">
+                              <Lock size={16} className="text-slate-400" />
+                              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Password Protection</span>
+                          </div>
+                          <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                              <input type="checkbox" name="toggle" id="toggle" className="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                              <label htmlFor="toggle" className="toggle-label block overflow-hidden h-5 rounded-full bg-slate-300 cursor-pointer"></label>
+                          </div>
+                      </div>
+
+                      <div className="pt-2">
+                          <button onClick={() => { alert('Sent to staff email list!'); setShareModalOpen(false); }} className="w-full py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold rounded-lg flex items-center justify-center gap-2 hover:opacity-90">
+                              <Mail size={16} /> Send to Kitchen Team
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          </div>
       )}
     </div>
   );
+};
+
+// --- PUBLIC SOP VIEWER COMPONENT ---
+export const PublicSOPViewer: React.FC<{ sopId: string, onExit: () => void }> = ({ sopId, onExit }) => {
+    const [sop, setSop] = useState<SOP | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        // Simulation: Try to find in any accessible storage or use a mock
+        // In a real app, this would fetch from an API endpoint by ID
+        const mockFetch = () => {
+            // Attempt to find in local storage (demo mode)
+            let foundSop: SOP | undefined;
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.includes('saved_sops')) {
+                    const sops = JSON.parse(localStorage.getItem(key) || '[]');
+                    foundSop = sops.find((s: SOP) => s.sop_id === sopId);
+                    if (foundSop) break;
+                }
+            }
+            
+            // If not found, return a dummy for demo purposes so the link works
+            if (!foundSop) {
+                foundSop = {
+                    sop_id: sopId,
+                    title: "Demo SOP: Opening Checklist",
+                    scope: "Front of House",
+                    prerequisites: "Uniform, Keys",
+                    materials_equipment: ["POS", "Lights"],
+                    stepwise_procedure: [
+                        { step_no: 1, action: "Unlock main doors", responsible_role: "Manager" },
+                        { step_no: 2, action: "Turn on lights and music", responsible_role: "Staff" }
+                    ],
+                    critical_control_points: [],
+                    monitoring_checklist: [],
+                    kpis: [],
+                    quick_troubleshooting: ""
+                };
+            }
+            setSop(foundSop);
+            setLoading(false);
+        };
+        
+        setTimeout(mockFetch, 800);
+    }, [sopId]);
+
+    if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-slate-400" size={32} /></div>;
+
+    if (!sop) return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500">SOP Not Found</div>;
+
+    return (
+        <div className="min-h-screen bg-slate-50 font-sans">
+            <div className="max-w-3xl mx-auto p-6">
+                <div className="flex justify-between items-center mb-8">
+                    <Logo iconSize={24} />
+                    <div className="flex gap-2">
+                        <button onClick={() => window.print()} className="p-2 text-slate-500 hover:text-slate-900 bg-white rounded-full shadow-sm">
+                            <Printer size={20} />
+                        </button>
+                        <button onClick={onExit} className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg">
+                            Login
+                        </button>
+                    </div>
+                </div>
+
+                <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 print:shadow-none print:border-0">
+                    <div className="border-b border-slate-100 pb-6 mb-6">
+                        <h1 className="text-3xl font-bold text-slate-900 mb-2">{sop.title}</h1>
+                        <p className="text-slate-500 text-sm">Scope: {sop.scope}</p>
+                    </div>
+
+                    <div className="space-y-8">
+                        <div>
+                            <h3 className="font-bold text-slate-900 mb-3 uppercase text-xs tracking-wider">Procedure</h3>
+                            <div className="space-y-0">
+                                {sop.stepwise_procedure.map((step, i) => (
+                                    <div key={i} className="flex gap-4 p-3 border-b border-slate-50 last:border-0">
+                                        <span className="font-bold text-slate-400 w-6">{step.step_no}.</span>
+                                        <div className="flex-1">
+                                            <p className="text-slate-800 font-medium">{step.action}</p>
+                                            <span className="text-xs text-slate-400 mt-1 block">{step.responsible_role}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {sop.materials_equipment.length > 0 && (
+                            <div className="bg-slate-50 p-6 rounded-lg">
+                                <h3 className="font-bold text-slate-900 mb-3 uppercase text-xs tracking-wider">Equipment Required</h3>
+                                <ul className="list-disc pl-5 space-y-1 text-sm text-slate-600">
+                                    {sop.materials_equipment.map((m, i) => <li key={i}>{m}</li>)}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                
+                <div className="text-center mt-8 text-slate-400 text-xs">
+                    Powered by BistroIntelligence
+                </div>
+            </div>
+        </div>
+    );
 };

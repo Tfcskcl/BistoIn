@@ -4,7 +4,7 @@ import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { Dashboard } from './pages/Dashboard';
 import { RecipeHub } from './pages/RecipeHub';
-import { SOPStudio } from './pages/SOPStudio';
+import { SOPStudio, PublicSOPViewer } from './pages/SOPStudio';
 import { Strategy } from './pages/Strategy';
 import { VideoStudio } from './pages/VideoStudio';
 import { Login } from './pages/Login';
@@ -27,6 +27,7 @@ function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [showEnterprise, setShowEnterprise] = useState(false);
   const [legalPage, setLegalPage] = useState<'terms' | 'privacy' | 'refund' | 'shipping' | null>(null);
+  const [publicSopId, setPublicSopId] = useState<string | null>(null);
   
   // Initialize theme from localStorage or system preference
   const [theme, setTheme] = useState<'light'|'dark'>(() => {
@@ -46,6 +47,13 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
+    // Check for public share links
+    const params = new URLSearchParams(window.location.search);
+    const sopId = params.get('viewSop');
+    if (sopId) {
+        setPublicSopId(sopId);
+    }
+
     return authService.subscribe((u) => setUser(u));
   }, []);
 
@@ -62,6 +70,15 @@ function App() {
       setShowLogin(false);
       setShowEnterprise(false);
   };
+
+  // Priority Render: Public SOP Viewer (No Login Required)
+  if (publicSopId) {
+      return <PublicSOPViewer sopId={publicSopId} onExit={() => {
+          setPublicSopId(null);
+          // Clear URL param without reload
+          window.history.pushState({}, '', window.location.pathname);
+      }} />;
+  }
 
   // Priority Render: Legal Pages
   if (legalPage) {

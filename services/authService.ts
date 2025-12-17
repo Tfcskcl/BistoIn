@@ -32,6 +32,32 @@ const DEMO_USERS: (User & {password: string})[] = [
     recipeQuota: 100, // Demo user gets high quota
     sopQuota: 50,
     setupComplete: true
+  },
+  {
+    id: 'super_admin_amit',
+    name: 'Amit (Super Admin)',
+    email: 'amit@chef-hire.in',
+    password: 'Bistro@2403',
+    role: UserRole.SUPER_ADMIN,
+    plan: PlanType.ENTERPRISE,
+    restaurantName: "Bistro HQ",
+    credits: 0,
+    recipeQuota: 9999,
+    sopQuota: 9999,
+    setupComplete: true
+  },
+  {
+    id: 'super_admin_info',
+    name: 'Bistro Admin',
+    email: 'info@bistroconnect.in',
+    password: 'Bistro@2403',
+    role: UserRole.SUPER_ADMIN,
+    plan: PlanType.ENTERPRISE,
+    restaurantName: "Bistro Operations",
+    credits: 0,
+    recipeQuota: 9999,
+    sopQuota: 9999,
+    setupComplete: true
   }
 ];
 
@@ -77,7 +103,8 @@ export const authService = {
 
   login: async (email: string, password: string): Promise<User> => {
     const mockUsers = getMockUsers();
-    const user = Object.values(mockUsers).find(u => u.email === email && u.password === password);
+    // Case insensitive email check
+    const user = Object.values(mockUsers).find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
     if (!user) throw new Error("Invalid credentials");
     
     const safeUser = { ...user };
