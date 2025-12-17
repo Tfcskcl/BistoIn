@@ -3,17 +3,17 @@ import React, { useState, useEffect } from 'react';
 import { Bell, Search, X, Check, Moon, Sun, ChevronRight, Home } from 'lucide-react';
 import { authService } from '../services/authService';
 import { storageService } from '../services/storageService';
-import { AppNotification, AppView } from '../types';
+import { AppNotification, AppView, User } from '../types';
 
 interface HeaderProps {
     theme: 'light' | 'dark';
     toggleTheme: () => void;
     currentView: AppView;
     onChangeView: (view: AppView) => void;
+    user: User;
 }
 
-export const Header: React.FC<HeaderProps> = ({ theme, toggleTheme, currentView, onChangeView }) => {
-  const user = authService.getCurrentUser();
+export const Header: React.FC<HeaderProps> = ({ theme, toggleTheme, currentView, onChangeView, user }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -22,7 +22,7 @@ export const Header: React.FC<HeaderProps> = ({ theme, toggleTheme, currentView,
         const list = storageService.getNotifications(user.id, user.role);
         setNotifications(list);
     }
-  }, [user]);
+  }, [user]); // user is now a stable prop from App state
 
   const unreadCount = notifications.filter(n => !n.read).length;
 

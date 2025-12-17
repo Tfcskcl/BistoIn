@@ -16,6 +16,7 @@ import { MenuGenerator } from './pages/MenuGenerator';
 import { InventoryManager } from './pages/InventoryManager'; 
 import { CCTVAnalytics } from './pages/CCTVAnalytics';
 import { Legal } from './pages/Legal';
+import { EnterprisePortal } from './pages/EnterprisePortal';
 import OnboardingWizard from './components/OnboardingWizard';
 import { AppView, User } from './types';
 import { authService } from './services/authService';
@@ -24,8 +25,25 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState<AppView>(AppView.DASHBOARD);
   const [showLogin, setShowLogin] = useState(false);
+  const [showEnterprise, setShowEnterprise] = useState(false);
   const [legalPage, setLegalPage] = useState<'terms' | 'privacy' | 'refund' | 'shipping' | null>(null);
-  const [theme, setTheme] = useState<'light'|'dark'>('light');
+  
+  // Initialize theme from localStorage or system preference
+  const [theme, setTheme] = useState<'light'|'dark'>(() => {
+      try {
+          const stored = localStorage.getItem('theme');
+          if (stored === 'dark' || stored === 'light') return stored;
+          return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      } catch { return 'light'; }
+  });
+
+  // Sync theme to DOM
+  useEffect(() => {
+      const root = window.document.documentElement;
+      if (theme === 'dark') root.classList.add('dark');
+      else root.classList.remove('dark');
+      localStorage.setItem('theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     return authService.subscribe((u) => setUser(u));
@@ -39,13 +57,24 @@ function App() {
       }
   };
 
-  // Priority Render: Legal Pages (Accessible without login)
+  const handleLogin = (u: User) => {
+      setUser(u);
+      setShowLogin(false);
+      setShowEnterprise(false);
+  };
+
+  // Priority Render: Legal Pages
   if (legalPage) {
       return <Legal docType={legalPage} onBack={() => setLegalPage(null)} />;
   }
 
-  if (!user && !showLogin) return <Landing onGetStarted={() => setShowLogin(true)} onOpenLegal={(page) => setLegalPage(page as any)} />;
-  if (!user && showLogin) return <Login onLogin={() => setShowLogin(false)} onBack={() => setShowLogin(false)} />;
+  // Priority Render: Enterprise Portal
+  if (showEnterprise) {
+      return <EnterprisePortal onBack={() => setShowEnterprise(false)} onLogin={handleLogin} />;
+  }
+
+  if (!user && !showLogin) return <Landing onGetStarted={() => setShowLogin(true)} onOpenLegal={(page) => setLegalPage(page as any)} onOpenEnterprise={() => setShowEnterprise(true)} />;
+  if (!user && showLogin) return <Login onLogin={handleLogin} onBack={() => setShowLogin(false)} />;
 
   if (user && !user.setupComplete) {
       return <OnboardingWizard onComplete={handleOnboardingComplete} onExit={authService.logout} />;
@@ -55,7 +84,13 @@ function App() {
     <div className={`min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white flex transition-colors ${theme}`}>
       <Sidebar currentView={currentView} onChangeView={setCurrentView} user={user!} onLogout={authService.logout} />
       <div className="flex-1 ml-64 flex flex-col">
-        <Header theme={theme} toggleTheme={() => setTheme(t => t==='light'?'dark':'light')} currentView={currentView} onChangeView={setCurrentView} />
+        <Header 
+            theme={theme} 
+            toggleTheme={() => setTheme(t => t==='light'?'dark':'light')} 
+            currentView={currentView} 
+            onChangeView={setCurrentView}
+            user={user!} 
+        />
         <main className="p-8 flex-1 overflow-y-auto">
             {currentView === AppView.DASHBOARD && <Dashboard user={user!} onChangeView={setCurrentView} />}
             {currentView === AppView.CCTV_ANALYTICS && <CCTVAnalytics user={user!} />}

@@ -11,9 +11,10 @@ import {
 interface LandingProps {
   onGetStarted: () => void;
   onOpenLegal: (page: string) => void;
+  onOpenEnterprise?: () => void;
 }
 
-export const Landing: React.FC<LandingProps> = ({ onGetStarted, onOpenLegal }) => {
+export const Landing: React.FC<LandingProps> = ({ onGetStarted, onOpenLegal, onOpenEnterprise }) => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -40,7 +41,7 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onOpenLegal }) =
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-4 md:gap-8">
             <div className="flex gap-6 text-sm font-semibold text-slate-600">
-                <a href="#features" className="hover:text-black transition-colors">Platform</a>
+                <a href="#platform" className="hover:text-black transition-colors">Platform</a>
                 <a href="#solutions" className="hover:text-black transition-colors">Solutions</a>
                 <a href="#pricing" className="hover:text-black transition-colors">Pricing</a>
             </div>
@@ -72,7 +73,7 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onOpenLegal }) =
         {/* Mobile Menu Dropdown */}
         {mobileMenuOpen && (
             <div className="md:hidden absolute top-full left-0 w-full bg-white border-b border-slate-200 p-6 flex flex-col gap-4 shadow-xl animate-fade-in-up">
-                <a href="#features" onClick={() => setMobileMenuOpen(false)} className="text-lg font-semibold text-slate-600 py-2 border-b border-slate-100">Platform</a>
+                <a href="#platform" onClick={() => setMobileMenuOpen(false)} className="text-lg font-semibold text-slate-600 py-2 border-b border-slate-100">Platform</a>
                 <a href="#solutions" onClick={() => setMobileMenuOpen(false)} className="text-lg font-semibold text-slate-600 py-2 border-b border-slate-100">Solutions</a>
                 <a href="#pricing" onClick={() => setMobileMenuOpen(false)} className="text-lg font-semibold text-slate-600 py-2 border-b border-slate-100">Pricing</a>
                 <div className="flex flex-col gap-3 mt-2">
@@ -83,8 +84,8 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onOpenLegal }) =
         )}
       </nav>
 
-      {/* Hero Section */}
-      <header className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 px-6 z-10 overflow-hidden">
+      {/* Hero Section (Platform) */}
+      <header id="platform" className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 px-6 z-10 overflow-hidden scroll-mt-24">
         <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
             
             {/* Hero Copy */}
@@ -119,7 +120,7 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onOpenLegal }) =
                     </button>
                     
                     <button 
-                        onClick={() => alert("Please contact sales@bistroconnect.in for Enterprise On-Premise setup.")}
+                        onClick={onOpenEnterprise}
                         className="group relative px-8 py-4 bg-white text-slate-800 text-base font-bold rounded-xl border border-slate-200 hover:border-slate-400 transition-all flex flex-col items-start min-w-[200px]"
                     >
                         <div className="flex items-center gap-2 w-full justify-between">
@@ -239,8 +240,8 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onOpenLegal }) =
           </div>
       </section>
 
-      {/* Feature Bento Grid */}
-      <section id="features" className="py-24 bg-white relative">
+      {/* Feature Bento Grid (Solutions) */}
+      <section id="solutions" className="py-24 bg-white relative scroll-mt-24">
           <div className="max-w-7xl mx-auto px-6">
               <div className="text-center mb-16">
                   <h2 className="text-3xl lg:text-4xl font-black text-slate-900 mb-4">One OS. Infinite Intelligence.</h2>
@@ -307,8 +308,8 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onOpenLegal }) =
           </div>
       </section>
 
-      {/* Solutions / Pricing */}
-      <section id="pricing" className="py-24 bg-slate-50 border-t border-slate-200">
+      {/* Pricing */}
+      <section id="pricing" className="py-24 bg-slate-50 border-t border-slate-200 scroll-mt-24">
           <div className="max-w-7xl mx-auto px-6">
               <div className="text-center mb-16">
                   <h2 className="text-3xl font-black text-slate-900">Choose your Intelligence Level</h2>
@@ -358,7 +359,7 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onOpenLegal }) =
                       <h3 className="font-bold text-lg mb-1">Enterprise</h3>
                       <div className="text-3xl font-black mb-4">₹1.5L <span className="text-xs font-medium text-slate-400">/ 5 outlets</span></div>
                       <p className="text-xs text-slate-500 mb-6 flex-1">For multi-chain brands requiring local server setup & offline mode.</p>
-                      <button onClick={() => alert("Redirecting to Enterprise Portal setup...")} className="w-full py-2 border border-slate-200 rounded-lg font-bold text-sm hover:bg-slate-50 text-slate-700">Contact Sales</button>
+                      <button onClick={onOpenEnterprise} className="w-full py-2 border border-slate-200 rounded-lg font-bold text-sm hover:bg-slate-50 text-slate-700">Contact Sales</button>
                   </div>
               </div>
           </div>
