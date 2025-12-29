@@ -29,29 +29,14 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onBack }) => {
     setFbStatus(getFirebaseStatus());
   }, []);
 
-  const handleQuickLogin = async () => {
-      setEmail('demo@bistroconnect.in');
-      setPassword('12345678');
-      setError(null);
-      setLoading(true);
-      try {
-          const user = await authService.login('demo@bistroconnect.in', '12345678');
-          storageService.seedDemoData(user.id);
-          onLogin(user);
-      } catch (err: any) {
-          setError(err.message || 'Quick login failed');
-          setLoading(false);
-      }
-  };
-
   const handleGoogleAuth = async () => {
     setError(null);
     setGoogleLoading(true);
     try {
         const user = await authService.loginWithGoogle();
-        // Seeding logic for specific demo accounts if needed
-        const demoEmails = ['demo@bistroconnect.in', 'info@bistroconnect.in', 'amit@chef-hire.in'];
-        if (demoEmails.includes(user.email.toLowerCase())) {
+        // Seeding logic for admin accounts
+        const adminEmails = ['info@bistroconnect.in', 'amit@chef-hire.in', 'tfcskcl@gmail.com', 'ghotikaramit@gmail.com'];
+        if (adminEmails.includes(user.email.toLowerCase())) {
             storageService.seedDemoData(user.id);
         }
         onLogin(user);
@@ -78,8 +63,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onBack }) => {
 
       if (mode === 'login') {
         const user = await authService.login(email, password);
-        const demoEmails = ['demo@bistroconnect.in', 'info@bistroconnect.in', 'amit@chef-hire.in'];
-        if (demoEmails.includes(user.email.toLowerCase())) {
+        const adminEmails = ['info@bistroconnect.in', 'amit@chef-hire.in', 'tfcskcl@gmail.com', 'ghotikaramit@gmail.com'];
+        if (adminEmails.includes(user.email.toLowerCase())) {
             storageService.seedDemoData(user.id);
         }
         onLogin(user);
@@ -132,25 +117,16 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onBack }) => {
       <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden animate-fade-in-up my-8">
         <div className="p-8 text-center bg-slate-900 dark:bg-slate-950 border-b border-slate-800 relative">
             <div className="absolute top-4 right-4 flex items-center gap-1.5 px-2 py-1 bg-white/5 rounded text-[9px] font-bold uppercase tracking-wider text-slate-400 border border-white/10">
-                {fbStatus.configured ? (
-                    <>
-                        <ShieldCheck size={10} className="text-emerald-500" />
-                        <span className="text-emerald-500">Auth Active</span>
-                    </>
-                ) : (
-                    <>
-                        <ShieldAlert size={10} className="text-amber-500" />
-                        <span className="text-amber-500">Demo Mode</span>
-                    </>
-                )}
+                <ShieldCheck size={10} className="text-emerald-500" />
+                <span className="text-emerald-500">Live System Access</span>
             </div>
             <div className="flex justify-center mb-6">
                 <Logo light={true} iconSize={32} className="scale-125" />
             </div>
           <p className="text-slate-400 mt-2 text-sm">
-            {mode === 'login' ? 'Sign in to access your dashboard' : 
-             mode === 'signup' ? 'Create your account to get started' : 
-             'Reset your password'}
+            {mode === 'login' ? 'Sign in to your neural dashboard' : 
+             mode === 'signup' ? 'Deploy your restaurant OS instance' : 
+             'Reset your access credentials'}
           </p>
         </div>
         
@@ -212,7 +188,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onBack }) => {
                       required
                       value={name}
                       onChange={e => setName(e.target.value)}
-                      className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-yellow-400 focus:border-transparent outline-none transition-all bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800"
+                      className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800"
                       placeholder="John Doe"
                     />
                   </div>
@@ -225,8 +201,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onBack }) => {
                     required
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-yellow-400 focus:border-transparent outline-none transition-all bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800"
-                    placeholder="demo@bistroconnect.in"
+                    className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800"
+                    placeholder="name@restaurant.com"
                   />
                 </div>
 
@@ -249,7 +225,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onBack }) => {
                       required
                       value={password}
                       onChange={e => setPassword(e.target.value)}
-                      className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-yellow-400 focus:border-transparent outline-none transition-all bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800"
+                      className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-800"
                       placeholder="••••••••"
                     />
                   </div>
@@ -259,30 +235,19 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onBack }) => {
                     <button 
                         type="submit" 
                         disabled={loading || googleLoading}
-                        className="w-full py-3.5 bg-slate-900 dark:bg-emerald-600 text-white font-bold rounded-lg hover:bg-slate-800 dark:hover:bg-emerald-700 active:transform active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-900/20 disabled:opacity-70 disabled:cursor-not-allowed"
+                        className="w-full py-3.5 bg-slate-900 dark:bg-emerald-600 text-white font-black rounded-lg hover:bg-slate-800 dark:hover:bg-emerald-700 active:transform active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-900/20 disabled:opacity-70 disabled:cursor-not-allowed uppercase tracking-widest text-xs"
                     >
                         {loading ? (
                             <>
                             <Loader2 className="animate-spin" size={18} /> Processing...
                             </>
                         ) : (
-                            mode === 'login' ? 'Login' : 
-                            mode === 'signup' ? 'Continue to Registration' : 
+                            mode === 'login' ? 'Establish Session' : 
+                            mode === 'signup' ? 'Initiate Node' : 
                             'Send Reset Link'
                         )} 
                         {!loading && (mode === 'forgot' ? <Mail size={18} /> : <ArrowRight size={18} />)}
                     </button>
-
-                    {mode === 'login' && (
-                        <button 
-                            type="button"
-                            onClick={handleQuickLogin}
-                            disabled={loading || googleLoading}
-                            className="w-full py-3 border-2 border-dashed border-emerald-500 text-emerald-600 dark:text-emerald-400 font-bold rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all flex items-center justify-center gap-2"
-                        >
-                            <Sparkles size={18} /> Login with Demo Account
-                        </button>
-                    )}
                 </div>
             </form>
           </div>
@@ -298,12 +263,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onBack }) => {
                </button>
             ) : (
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                {mode === 'login' ? "Don't have an account?" : "Already have an account?"} 
+                {mode === 'login' ? "New Organization?" : "Existing Node?"} 
                 <button 
                     onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')} 
                     className="ml-1 text-emerald-600 dark:text-emerald-400 font-bold hover:text-emerald-700 transition-colors"
                 >
-                    {mode === 'login' ? 'Signup' : 'Login'}
+                    {mode === 'login' ? 'Setup Instance' : 'Login'}
                 </button>
               </p>
             )}

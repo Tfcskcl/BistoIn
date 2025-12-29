@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, MenuEngineeringItem, MenuCategoryType, RecipeCard } from '../types';
 import { storageService } from '../services/storageService';
@@ -56,42 +55,65 @@ export const MenuEngineering: React.FC<MenuEngineeringProps> = ({ user, onStrate
         setLoading(true);
         const recipes = storageService.getSavedRecipes(user.id);
         
-        const mockAnalyzed: MenuEngineeringItem[] = recipes.map((r, i) => {
-            const isPuzzle = r.sku_id === 'SKU-PUZZLE-01';
-            const vol = isPuzzle ? 8 : (Math.floor(Math.random() * 150) + 10);
+        if (recipes.length === 0) {
+            setItems([]);
+            setLoading(false);
+            return;
+        }
+
+        // 1. Initial Mapping & Data Preparation
+        const initialItems = recipes.map(r => {
+            const vol = (Math.floor(Math.random() * 150) + 10); // Simulated volume for now, ideally from storage
             const price = r.current_price || r.suggested_selling_price || 350;
-            const margin = price - (r.food_cost_per_serving || 0);
+            const cost = r.food_cost_per_serving || 0;
+            const margin = price - cost;
             
-            const popScore = Math.min((vol / 160) * 100, 100);
-            const profScore = Math.min((margin / (price * 0.8 || 1)) * 100, 100);
-
-            let label: MenuCategoryType = 'DOG';
-            if (popScore >= 50 && profScore >= 50) label = 'STAR';
-            else if (popScore >= 50 && profScore < 50) label = 'PLOWHORSE';
-            else if (popScore < 50 && profScore >= 50) label = 'PUZZLE';
-
-            let aiRec = '';
-            if (isPuzzle) {
-                aiRec = "PROMOTION STRATEGY: High-margin masterpiece detected. Use 'Table-side Golden Finish' to drive viral social visibility. Feature on page 1 of menu with a gold-bordered 'Signature' badge.";
-            }
-
             return {
                 ...r,
-                popularity_score: popScore,
-                profitability_score: profScore,
                 contribution_margin: margin,
                 sales_volume: vol,
-                category_label: label,
                 current_price: price,
-                ai_recommendation: aiRec || "Optimizing margin via procurement audit..."
+                food_cost_per_serving: cost
+            };
+        });
+
+        // 2. Calculate Averages for Categorization (Standard Menu Engineering Logic)
+        const totalVolume = initialItems.reduce((sum, item) => sum + item.sales_volume, 0);
+        const totalMargin = initialItems.reduce((sum, item) => sum + (item.contribution_margin * item.sales_volume), 0);
+        
+        const avgVolume = totalVolume / initialItems.length;
+        const avgMargin = totalMargin / totalVolume; // Weighted average margin
+
+        // 3. Automated Quadrant Assignment
+        const analyzedItems: MenuEngineeringItem[] = initialItems.map(item => {
+            const isHighVolume = item.sales_volume >= avgVolume;
+            const isHighMargin = item.contribution_margin >= avgMargin;
+
+            let label: MenuCategoryType = 'DOG';
+            if (isHighVolume && isHighMargin) label = 'STAR';
+            else if (isHighVolume && !isHighMargin) label = 'PLOWHORSE';
+            else if (!isHighVolume && isHighMargin) label = 'PUZZLE';
+
+            // Normalize scores for the UI Matrix (0-100 scale relative to dataset)
+            // We use standard deviation or simple max scaling
+            const maxVol = Math.max(...initialItems.map(i => i.sales_volume)) || 1;
+            const maxMargin = Math.max(...initialItems.map(i => i.contribution_margin)) || 1;
+
+            return {
+                ...item,
+                popularity_score: (item.sales_volume / maxVol) * 100,
+                profitability_score: (item.contribution_margin / maxMargin) * 100,
+                category_label: label,
+                ai_recommendation: "Analyzing tactical opportunities..."
             };
         });
 
         try {
-            const withAI = await analyzeMenuEngineering(mockAnalyzed);
+            // 4. Enrich with AI Tactical Recommendations
+            const withAI = await analyzeMenuEngineering(analyzedItems);
             setItems(withAI);
         } catch (e) {
-            setItems(mockAnalyzed);
+            setItems(analyzedItems);
         } finally {
             setLoading(false);
         }
@@ -185,15 +207,15 @@ export const MenuEngineering: React.FC<MenuEngineeringProps> = ({ user, onStrate
                     </div>
                     <div className="space-y-2 text-xs">
                         <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-2 rounded">
-                            <span className="text-slate-500">Profitability</span>
+                            <span className="text-slate-500">Margin Strength</span>
                             <span className="font-black text-emerald-600">{(data.profitability_score || 0).toFixed(1)}%</span>
                         </div>
                         <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-2 rounded">
-                            <span className="text-slate-500">Popularity</span>
+                            <span className="text-slate-500">Volume Velocity</span>
                             <span className="font-black text-blue-600">{(data.popularity_score || 0).toFixed(1)}%</span>
                         </div>
-                        <div className="flex justify-between pt-2 px-1">
-                            <span className="text-slate-500">Margin</span>
+                        <div className="flex justify-between pt-2 px-1 border-t border-slate-100 dark:border-slate-800 mt-2">
+                            <span className="text-slate-500">Net Margin</span>
                             <span className="font-bold text-emerald-600">₹{(data.contribution_margin || 0).toFixed(0)}</span>
                         </div>
                     </div>
@@ -281,7 +303,7 @@ export const MenuEngineering: React.FC<MenuEngineeringProps> = ({ user, onStrate
                             {viewMode === 'matrix' ? (
                                 <div className="flex-1 min-h-[400px] relative">
                                     <div className="flex justify-between items-center mb-8">
-                                        <div><h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">Performance Matrix</h3><p className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">X: Margin Delta • Y: Sales Velocity</p></div>
+                                        <div><h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">Automated Performance Matrix</h3><p className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5">X: Relative Profit Margin • Y: Sales Frequency</p></div>
                                     </div>
                                     <ResponsiveContainer width="100%" height="100%">
                                         <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
@@ -330,6 +352,12 @@ export const MenuEngineering: React.FC<MenuEngineeringProps> = ({ user, onStrate
                                             <p className="text-[11px] text-slate-400 italic leading-relaxed">"{item.ai_recommendation || 'Analyzing tactical opportunities...'}"</p>
                                         </div>
                                     ))}
+                                    {filteredItems.length === 0 && (
+                                        <div className="text-center py-20 opacity-30">
+                                            <HelpCircle size={48} className="mx-auto mb-4" />
+                                            <p className="text-xs font-bold uppercase tracking-widest">No Contextual Data</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

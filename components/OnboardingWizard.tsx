@@ -1,11 +1,14 @@
 
 import React, { useState, useRef } from 'react';
-import { CheckCircle2, ArrowRight, ShieldCheck, FileText, UploadCloud, Video, Camera, Store, LayoutTemplate, AlertTriangle, Loader2, IndianRupee, MapPin, ChefHat, Database, Brain, Rocket, LogOut } from 'lucide-react';
+// Added TrendingDown, BarChart3, Star to lucide-react imports
+import { CheckCircle2, ArrowRight, ShieldCheck, FileText, UploadCloud, Video, Camera, Store, LayoutTemplate, AlertTriangle, Loader2, IndianRupee, MapPin, ChefHat, Database, Brain, Rocket, LogOut, Info, Fingerprint, TrendingDown, BarChart3, Star } from 'lucide-react';
 import { paymentService } from '../services/paymentService';
 import { SETUP_FEE } from '../constants';
 import { PlanType } from '../types';
 import { authService } from '../services/authService';
 import { verifyLocationWithMaps } from '../services/geminiService';
+// Added Logo import
+import { Logo } from './Logo';
 
 const STEPS = [
     { id: 'outlet_details', title: 'Outlet Profile', icon: Store },
@@ -49,7 +52,6 @@ export default function OnboardingWizard({ onComplete, onExit }: OnboardingWizar
 
     const saveOutletDetails = async () => {
         if (!user) return;
-        // Save intermediate data to user profile
         const updatedUser = { 
             ...user, 
             restaurantName: outletData.restaurantName,
@@ -76,16 +78,11 @@ export default function OnboardingWizard({ onComplete, onExit }: OnboardingWizar
 
     const handleNext = async () => {
         setLoading(true);
-        
-        // Save Data on transition
         if (STEPS[currentStep].id === 'outlet_details') {
             await saveOutletDetails();
         }
-
-        // Simulate processing
         await new Promise(resolve => setTimeout(resolve, 800));
         setLoading(false);
-        
         if (currentStep < STEPS.length - 1) {
             setCurrentStep(currentStep + 1);
         } else {
@@ -108,9 +105,6 @@ export default function OnboardingWizard({ onComplete, onExit }: OnboardingWizar
     const handlePayment = async () => {
         if (!user) return;
         setLoading(true);
-        
-        // If Ops Manager was selected in step 2 or 3, we might charge differently, 
-        // but for now keeping the standard Setup Fee for simplicity as per request
         const plan = integrationChoice === 'ops_manager' ? PlanType.OPS_MANAGER : PlanType.FREE;
         const amount = integrationChoice === 'ops_manager' ? 24999 : SETUP_FEE;
 
@@ -119,7 +113,6 @@ export default function OnboardingWizard({ onComplete, onExit }: OnboardingWizar
             plan,
             amount,
             async (pid) => {
-                // Final save of all preferences
                 const finalUser = {
                     ...user,
                     plan: plan,
@@ -136,115 +129,141 @@ export default function OnboardingWizard({ onComplete, onExit }: OnboardingWizar
         );
     };
 
+    const inputClasses = "w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all shadow-sm font-medium";
+    const labelClasses = "block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1";
+
     const renderStepContent = () => {
         switch (STEPS[currentStep].id) {
-            // --- STEP 1: OUTLET DETAILS ---
             case 'outlet_details':
                 return (
-                    <div className="space-y-6 animate-fade-in">
-                        <div className="text-center mb-6">
-                            <h3 className="text-xl font-bold text-slate-800">Tell us about your Outlet</h3>
-                            <p className="text-sm text-slate-500">We need these details to calibrate the AI for your specific market.</p>
+                    <div className="space-y-8 animate-fade-in">
+                        <div className="text-center">
+                            <h3 className="text-2xl font-black text-slate-900 tracking-tight">Tell us about your Outlet</h3>
+                            <p className="text-sm text-slate-500 mt-1">We need these technical parameters to calibrate the Neural OS for your market.</p>
                         </div>
 
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Restaurant Name</label>
+                        <div className="space-y-5">
+                            <div className="group">
+                                <label className={labelClasses}>Restaurant Identity</label>
                                 <div className="relative">
-                                    <Store size={16} className="absolute left-3 top-3 text-slate-400"/>
+                                    <Store size={18} className="absolute left-3.5 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors"/>
                                     <input 
                                         type="text" 
                                         value={outletData.restaurantName}
                                         onChange={(e) => setOutletData({...outletData, restaurantName: e.target.value})}
-                                        className="w-full pl-10 pr-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        className={inputClasses}
                                         placeholder="e.g. The Spicy Wok"
                                     />
                                 </div>
                             </div>
 
-                            <div className="flex gap-4">
-                                <div className="flex-1">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Location</label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div className="group">
+                                    <label className={labelClasses}>Market Location</label>
                                     <div className="relative">
-                                        <MapPin size={16} className="absolute left-3 top-3 text-slate-400"/>
+                                        <MapPin size={18} className="absolute left-3.5 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors"/>
                                         <input 
                                             type="text" 
                                             value={outletData.location}
                                             onChange={(e) => setOutletData({...outletData, location: e.target.value})}
-                                            className="w-full pl-10 pr-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                                            className={inputClasses}
                                             placeholder="City / Area"
                                         />
                                     </div>
-                                    <button 
-                                        onClick={handleVerifyLocation}
-                                        disabled={verifyingLoc || !outletData.location}
-                                        className="mt-1 text-[10px] text-blue-600 font-bold hover:underline"
-                                    >
-                                        {verifyingLoc ? "Checking Maps..." : "Verify Location"}
-                                    </button>
-                                    {locDetails && <p className="text-[10px] text-emerald-600">{locDetails}</p>}
+                                    <div className="flex justify-between items-center mt-2 px-1">
+                                        <button 
+                                            onClick={handleVerifyLocation}
+                                            disabled={verifyingLoc || !outletData.location}
+                                            className="text-[10px] text-blue-600 font-black uppercase tracking-widest hover:underline disabled:opacity-50"
+                                        >
+                                            {verifyingLoc ? "Verifying Geospatial Nodes..." : "Verify via Neural Maps"}
+                                        </button>
+                                        {locDetails && <span className="text-[10px] text-emerald-600 font-bold uppercase flex items-center gap-1"><CheckCircle2 size={10}/> Verified</span>}
+                                    </div>
+                                    {locDetails && (
+                                        <div className="mt-2 p-3 bg-slate-50 border border-slate-100 rounded-lg text-[11px] text-slate-600 leading-relaxed italic">
+                                            "{locDetails}"
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="flex-1">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cuisine</label>
+                                <div className="group">
+                                    <label className={labelClasses}>Cuisine Logic</label>
                                     <div className="relative">
-                                        <ChefHat size={16} className="absolute left-3 top-3 text-slate-400"/>
+                                        <ChefHat size={18} className="absolute left-3.5 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors"/>
                                         <input 
                                             type="text" 
                                             value={outletData.cuisineType}
                                             onChange={(e) => setOutletData({...outletData, cuisineType: e.target.value})}
-                                            className="w-full pl-10 pr-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                                            placeholder="e.g. Indian, Pan-Asian"
+                                            className={inputClasses}
+                                            placeholder="e.g. Modern Indian Fusion"
                                         />
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="flex gap-4">
-                                <input 
-                                    type="text" 
-                                    placeholder="GST No. (Optional)" 
-                                    value={outletData.gstNumber}
-                                    onChange={(e) => setOutletData({...outletData, gstNumber: e.target.value})}
-                                    className="flex-1 px-4 py-2.5 border rounded-lg text-sm"
-                                />
-                                <input 
-                                    type="text" 
-                                    placeholder="FSSAI No. (Optional)" 
-                                    value={outletData.fssaiNumber}
-                                    onChange={(e) => setOutletData({...outletData, fssaiNumber: e.target.value})}
-                                    className="flex-1 px-4 py-2.5 border rounded-lg text-sm"
-                                />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
+                                <div>
+                                    <label className={labelClasses}>GST Identification (Optional)</label>
+                                    <div className="relative">
+                                        <Fingerprint size={16} className="absolute left-3.5 top-3.5 text-slate-400"/>
+                                        <input 
+                                            type="text" 
+                                            placeholder="24AAAAA0000A1Z5" 
+                                            value={outletData.gstNumber}
+                                            onChange={(e) => setOutletData({...outletData, gstNumber: e.target.value})}
+                                            className={inputClasses}
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className={labelClasses}>FSSAI License (Optional)</label>
+                                    <div className="relative">
+                                        <ShieldCheck size={16} className="absolute left-3.5 top-3.5 text-slate-400"/>
+                                        <input 
+                                            type="text" 
+                                            placeholder="12345678901234" 
+                                            value={outletData.fssaiNumber}
+                                            onChange={(e) => setOutletData({...outletData, fssaiNumber: e.target.value})}
+                                            className={inputClasses}
+                                        />
+                                    </div>
+                                </div>
                             </div>
+                        </div>
+
+                        <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex gap-3 items-start">
+                            <Info size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+                            <p className="text-xs text-emerald-800 leading-relaxed font-medium">
+                                These details initialize your <strong>private instance</strong>. AI models use this for market-grounded ingredient pricing and local strategic insights.
+                            </p>
                         </div>
                     </div>
                 );
 
-            // --- STEP 2: INTEGRATION & DATA ---
             case 'integration':
                 return (
                     <div className="space-y-6 animate-fade-in">
                         <div className="text-center mb-6">
-                            <h3 className="text-xl font-bold text-slate-800">Integration & Data</h3>
-                            <p className="text-sm text-slate-500">How would you like to initialize your operating system?</p>
+                            <h3 className="text-2xl font-black text-slate-900 tracking-tight">Data Ingress Mode</h3>
+                            <p className="text-sm text-slate-500">Choose how to initialize your neural knowledge base.</p>
                         </div>
 
                         <div className="grid grid-cols-1 gap-4">
-                            {/* Option 1: Upload */}
                             <div 
                                 onClick={() => setIntegrationChoice('upload')}
-                                className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-4 ${integrationChoice === 'upload' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:border-emerald-300'}`}
+                                className={`p-6 rounded-[1.5rem] border-2 cursor-pointer transition-all flex items-start gap-6 ${integrationChoice === 'upload' ? 'border-emerald-500 bg-emerald-50/50 shadow-md' : 'border-slate-100 hover:border-emerald-200 bg-slate-50/30'}`}
                             >
-                                <div className="bg-white p-2 rounded-lg shadow-sm"><UploadCloud size={24} className="text-blue-500"/></div>
-                                <div>
-                                    <h4 className="font-bold text-slate-800">I have existing data</h4>
-                                    <p className="text-xs text-slate-500 mt-1">Upload Menus, Inventory Logs, Recipes (PDF/Excel). We'll digitize them.</p>
+                                <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100"><UploadCloud size={24} className="text-blue-500"/></div>
+                                <div className="flex-1">
+                                    <h4 className="font-bold text-slate-900">Legacy Data Ingestion</h4>
+                                    <p className="text-xs text-slate-500 mt-1">OCR-scan existing Menus, Inventory Logs, and Recipes. We'll digitize and cost them automatically.</p>
                                     {integrationChoice === 'upload' && (
-                                        <div className="mt-3">
+                                        <div className="mt-4 animate-fade-in">
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                                                className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700"
+                                                className="px-5 py-2 bg-slate-900 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-black transition-all"
                                             >
-                                                Select Files
+                                                Select Documentation
                                             </button>
                                             <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileUpload}/>
                                         </div>
@@ -252,140 +271,166 @@ export default function OnboardingWizard({ onComplete, onExit }: OnboardingWizar
                                 </div>
                             </div>
 
-                            {/* Option 2: Create New */}
                             <div 
                                 onClick={() => setIntegrationChoice('create_new')}
-                                className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-4 ${integrationChoice === 'create_new' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:border-emerald-300'}`}
+                                className={`p-6 rounded-[1.5rem] border-2 cursor-pointer transition-all flex items-start gap-6 ${integrationChoice === 'create_new' ? 'border-emerald-500 bg-emerald-50/50 shadow-md' : 'border-slate-100 hover:border-emerald-200 bg-slate-50/30'}`}
                             >
-                                <div className="bg-white p-2 rounded-lg shadow-sm"><FileText size={24} className="text-emerald-500"/></div>
-                                <div>
-                                    <h4 className="font-bold text-slate-800">I don't have data (Create for me)</h4>
-                                    <p className="text-xs text-slate-500 mt-1">Our AI will generate standard recipes, SOPs, and inventory lists for your cuisine.</p>
+                                <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100"><FileText size={24} className="text-emerald-500"/></div>
+                                <div className="flex-1">
+                                    <h4 className="font-bold text-slate-900">Synthesize New Standards</h4>
+                                    <p className="text-xs text-slate-500 mt-1">Our AI will generate technical recipe cards, SOPs, and par-level inventory for your cuisine from scratch.</p>
                                 </div>
                             </div>
 
-                            {/* Option 3: Ops Manager */}
                             <div 
                                 onClick={() => setIntegrationChoice('ops_manager')}
-                                className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-4 ${integrationChoice === 'ops_manager' ? 'border-purple-500 bg-purple-50' : 'border-slate-200 hover:border-purple-300'}`}
+                                className={`p-6 rounded-[1.5rem] border-2 cursor-pointer transition-all flex items-start gap-6 ${integrationChoice === 'ops_manager' ? 'border-purple-500 bg-purple-50 shadow-md' : 'border-slate-100 hover:border-purple-200 bg-slate-50/30'}`}
                             >
-                                <div className="bg-white p-2 rounded-lg shadow-sm"><AlertTriangle size={24} className="text-purple-500"/></div>
-                                <div>
-                                    <h4 className="font-bold text-slate-800">I need the Ops Manager Plan</h4>
-                                    <p className="text-xs text-slate-500 mt-1">Skip manual setup. Get a dedicated account manager to set up everything + CCTV Integration.</p>
+                                <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100"><ShieldCheck size={24} className="text-purple-500"/></div>
+                                <div className="flex-1">
+                                    <div className="flex justify-between items-center">
+                                        <h4 className="font-bold text-slate-900">Concierge Deployment</h4>
+                                        <span className="text-[9px] font-black bg-purple-600 text-white px-2 py-0.5 rounded-full uppercase">PRO</span>
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-1">Get a dedicated account manager for 24/7 technical setup, menu engineering audits, and CCTV hardware integration.</p>
                                 </div>
                             </div>
                         </div>
                     </div>
                 );
 
-            // --- STEP 3: RESTAURANT OPS AI ---
             case 'ops_ai':
                 return (
                     <div className="space-y-6 animate-fade-in">
                         <div className="text-center mb-6">
-                            <h3 className="text-xl font-bold text-slate-800">Restaurant Ops AI</h3>
-                            <p className="text-sm text-slate-500">Enable advanced AI modules for your kitchen.</p>
+                            <h3 className="text-2xl font-black text-slate-900 tracking-tight">Vision & Workflow AI</h3>
+                            <p className="text-sm text-slate-500">Enable neural surveillance and movement optimization.</p>
                         </div>
 
-                        <div className="bg-slate-900 text-white p-6 rounded-xl shadow-lg mb-6">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center gap-2">
-                                    <Video className="text-emerald-400" />
-                                    <span className="font-bold text-lg">CCTV Recipe & SOP Audit</span>
+                        <div className="bg-slate-900 p-8 rounded-[2rem] text-white shadow-2xl relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity"><Video size={100}/></div>
+                            <div className="relative z-10">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-3 bg-emerald-500/20 rounded-2xl border border-emerald-500/30 text-emerald-400">
+                                            <Camera size={24} />
+                                        </div>
+                                        <div>
+                                            <span className="font-black text-xl uppercase tracking-tighter">BistroVision Audit</span>
+                                            <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">LIVE_SURVEILLANCE_OS</p>
+                                        </div>
+                                    </div>
+                                    <div className="relative inline-block w-14 mr-2 align-middle select-none transition duration-200 ease-in">
+                                        <input type="checkbox" name="toggle" id="toggle" checked={enableCCTV} onChange={() => setEnableCCTV(!enableCCTV)} className="toggle-checkbox absolute block w-8 h-8 rounded-full bg-white border-4 appearance-none cursor-pointer checked:right-0 right-6 transition-all duration-300"/>
+                                        <label htmlFor="toggle" className={`toggle-label block overflow-hidden h-8 rounded-full cursor-pointer transition-colors ${enableCCTV ? 'bg-emerald-500' : 'bg-slate-700'}`}></label>
+                                    </div>
                                 </div>
-                                <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
-                                    <input type="checkbox" name="toggle" id="toggle" checked={enableCCTV} onChange={() => setEnableCCTV(!enableCCTV)} className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer checked:right-0 right-6"/>
-                                    <label htmlFor="toggle" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${enableCCTV ? 'bg-emerald-500' : 'bg-gray-600'}`}></label>
+                                <div className="space-y-3">
+                                    {[
+                                        "Automated Recipe Step Validation",
+                                        "Real-time Hygiene Breach Detection",
+                                        "Cash Drawer Integrity Monitoring"
+                                    ].map((feature, i) => (
+                                        <div key={i} className="flex gap-3 text-sm text-slate-300 font-medium">
+                                            <CheckCircle2 size={18} className="text-emerald-500 shrink-0"/> {feature}
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
-                            <p className="text-xs text-slate-400 mb-2">
-                                Connect existing cameras (Hikvision/EZVIZ) to:
-                            </p>
-                            <ul className="space-y-2 text-sm text-slate-300">
-                                <li className="flex gap-2"><CheckCircle2 size={16} className="text-emerald-400"/> Audit Recipe Preparation Steps</li>
-                                <li className="flex gap-2"><CheckCircle2 size={16} className="text-emerald-400"/> Detect Hygiene Violations</li>
-                                <li className="flex gap-2"><CheckCircle2 size={16} className="text-emerald-400"/> Track Real-time Wastage</li>
-                            </ul>
                         </div>
 
-                        <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center gap-2">
-                                    <LayoutTemplate className="text-blue-500" />
-                                    <span className="font-bold text-slate-800">Kitchen Workflow Optimization</span>
+                        <div className={`p-6 rounded-[1.5rem] border-2 transition-all flex items-center justify-between gap-4 cursor-pointer ${enableWorkflow ? 'border-blue-500 bg-blue-50 shadow-md' : 'border-slate-100 bg-slate-50/50'}`} onClick={() => setEnableWorkflow(!enableWorkflow)}>
+                            <div className="flex items-center gap-4">
+                                <div className={`p-3 rounded-2xl shadow-sm border ${enableWorkflow ? 'bg-blue-100 text-blue-600 border-blue-200' : 'bg-white text-slate-400 border-slate-100'}`}><LayoutTemplate size={24} /></div>
+                                <div>
+                                    <h4 className={`font-bold ${enableWorkflow ? 'text-blue-900' : 'text-slate-900'}`}>Kinetic Workflow Optimization</h4>
+                                    <p className="text-xs text-slate-500 mt-0.5">AI analyzes kinetic staff movement to minimize kitchen station collisions.</p>
                                 </div>
-                                <input type="checkbox" checked={enableWorkflow} onChange={() => setEnableWorkflow(!enableWorkflow)} className="w-5 h-5 text-emerald-600 rounded" />
                             </div>
-                            <p className="text-xs text-slate-500 mb-2">
-                                AI analyzes staff movement to suggest station layout changes and minimize collisions.
-                            </p>
+                            <input type="checkbox" checked={enableWorkflow} onChange={() => {}} className="w-6 h-6 text-blue-600 rounded-lg pointer-events-none" />
                         </div>
                     </div>
                 );
 
-            // --- STEP 4: AI STRATEGY ---
             case 'strategy':
                 return (
                     <div className="space-y-6 animate-fade-in">
-                        <div className="text-center mb-6">
-                            <h3 className="text-xl font-bold text-slate-800">Initialize Strategy Engine</h3>
-                            <p className="text-sm text-slate-500">What are your top priorities for the next 90 days?</p>
+                        <div className="text-center mb-8">
+                            <h3 className="text-2xl font-black text-slate-900 tracking-tight">Strategic Initialization</h3>
+                            <p className="text-sm text-slate-500">Select your operational benchmarks for the first 90 days.</p>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                            {['Reduce Food Cost', 'Increase Online Orders', 'Improve Staff Retention', 'Menu Engineering', 'Expand to New Location', 'Automate Purchasing'].map((goal) => (
+                            {[
+                                { goal: 'Reduce Food Cost', icon: TrendingDown },
+                                { goal: 'Increase Volume', icon: BarChart3 },
+                                { goal: 'Staff Productivity', icon: Users },
+                                { goal: 'Menu Psychology', icon: Star },
+                                { goal: 'Waste Reduction', icon: AlertTriangle },
+                                { goal: 'Brand Expansion', icon: Rocket }
+                            ].map(({ goal, icon: Icon }) => (
                                 <button
                                     key={goal}
                                     onClick={() => toggleStrategyGoal(goal)}
-                                    className={`p-4 rounded-xl border text-sm font-bold transition-all ${
+                                    className={`p-5 rounded-2xl border-2 text-left transition-all flex flex-col gap-3 relative overflow-hidden group ${
                                         strategyGoals.includes(goal) 
-                                        ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm' 
-                                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                                        ? 'bg-indigo-600 border-indigo-600 shadow-xl' 
+                                        : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-200'
                                     }`}
                                 >
-                                    {goal}
+                                    <Icon size={20} className={strategyGoals.includes(goal) ? 'text-indigo-200' : 'text-slate-400'} />
+                                    <span className={`text-sm font-black uppercase tracking-tight ${strategyGoals.includes(goal) ? 'text-white' : 'text-slate-800'}`}>{goal}</span>
+                                    {strategyGoals.includes(goal) && <CheckCircle2 size={16} className="absolute top-4 right-4 text-indigo-300"/>}
                                 </button>
                             ))}
                         </div>
                         
-                        <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100 mt-4 flex gap-3">
-                            <Brain className="text-indigo-600 shrink-0" />
-                            <p className="text-xs text-indigo-800">
-                                <strong>AI Note:</strong> Based on your selections, I will generate a custom 90-day roadmap on your dashboard immediately after activation.
+                        <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-100 mt-6 flex gap-4">
+                            <Brain className="text-indigo-600 shrink-0 mt-0.5" size={24} />
+                            <p className="text-xs text-indigo-800 leading-relaxed">
+                                <strong>Strategy Node Active:</strong> Based on your selections, I will synthesize a localized 90-day implementation roadmap incorporating weather trends and local competition data.
                             </p>
                         </div>
                     </div>
                 );
 
-            // --- STEP 5: ACTIVATION ---
             case 'activation':
                 return (
-                    <div className="text-center space-y-6 animate-fade-in py-8">
-                        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto text-emerald-600">
-                            <Rocket size={40} />
+                    <div className="text-center space-y-8 animate-fade-in py-8">
+                        <div className="relative inline-block">
+                            <div className="w-24 h-24 bg-emerald-100 rounded-[2rem] flex items-center justify-center mx-auto text-emerald-600 relative z-10 shadow-2xl">
+                                <Rocket size={48} />
+                            </div>
+                            <div className="absolute inset-0 bg-emerald-500/20 blur-3xl animate-pulse rounded-full"></div>
                         </div>
+                        
                         <div>
-                            <h3 className="text-2xl font-bold text-slate-900">Ready to Launch</h3>
-                            <p className="text-slate-500 mt-2">
-                                {integrationChoice === 'ops_manager' 
-                                    ? "Activate your Ops Manager Plan" 
-                                    : "Initialize your secure database and AI models"}
+                            <h3 className="text-3xl font-black text-slate-900 tracking-tight">Deployment Ready</h3>
+                            <p className="text-slate-500 mt-2 max-w-sm mx-auto">
+                                Finalizing your technical instance on the secure edge node. Choose activation package to launch.
                             </p>
                         </div>
-                        <div className="text-5xl font-black text-slate-900">
-                            ₹{integrationChoice === 'ops_manager' ? '24,999' : SETUP_FEE}
-                            <span className="text-sm font-medium text-slate-400 block mt-2">
-                                {integrationChoice === 'ops_manager' ? '/ month' : 'One-time Setup Fee'}
-                            </span>
+
+                        <div className="p-8 bg-slate-950 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-10 opacity-5"><ShieldCheck size={120}/></div>
+                            <div className="relative z-10">
+                                <div className="text-sm font-black uppercase tracking-[0.3em] text-emerald-400 mb-2">Technical Provisioning</div>
+                                <div className="text-6xl font-black text-white flex items-center justify-center gap-1">
+                                    <span className="text-3xl opacity-50">₹</span>
+                                    {integrationChoice === 'ops_manager' ? '24,999' : SETUP_FEE}
+                                </div>
+                                <p className="text-[10px] font-mono text-slate-500 mt-2 uppercase tracking-widest">
+                                    {integrationChoice === 'ops_manager' ? 'SUBSCRIPTION_MODEL // MONTHLY' : 'ONE_TIME_SYNTHESIS_FEE'}
+                                </p>
+                            </div>
                         </div>
                         
                         <button 
                             onClick={handlePayment}
                             disabled={loading}
-                            className="w-full max-w-sm mx-auto py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-black transition-all shadow-xl flex items-center justify-center gap-2"
+                            className="w-full max-w-md mx-auto py-5 bg-emerald-600 text-white font-black rounded-2xl hover:bg-emerald-700 transition-all shadow-2xl shadow-emerald-900/20 flex items-center justify-center gap-3 uppercase tracking-[0.2em] text-xs active:scale-95 disabled:opacity-50"
                         >
-                            {loading ? <Loader2 className="animate-spin" /> : 'Pay & Launch Dashboard'}
+                            {loading ? <Loader2 className="animate-spin" /> : <><ShieldCheck size={20}/> Activate Neural Nexus</>}
                         </button>
                     </div>
                 );
@@ -394,51 +439,53 @@ export default function OnboardingWizard({ onComplete, onExit }: OnboardingWizar
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-            <div className="bg-white max-w-2xl w-full rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
-                {/* Header */}
-                <div className="bg-slate-900 p-6 text-white flex justify-between items-center shrink-0">
-                    <div>
-                        <h1 className="text-xl font-bold">System Setup</h1>
-                        <p className="text-xs text-slate-400">Step {currentStep + 1} of {STEPS.length}</p>
+        <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+            <div className="bg-white max-w-3xl w-full rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border border-white">
+                <div className="bg-slate-900 p-8 text-white flex justify-between items-center shrink-0">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10">
+                            <Logo iconSize={24} light={true} />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-black tracking-tighter uppercase">Neural Setup</h1>
+                            <p className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">NODE_04 // CONFIGURATION_MODE</p>
+                        </div>
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="text-right hidden sm:block">
-                            <p className="text-sm font-bold text-yellow-400">{STEPS[currentStep].title}</p>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5">CURRENT_MODULE</p>
+                            <p className="text-sm font-black text-yellow-400 uppercase tracking-tight">{STEPS[currentStep].title}</p>
                         </div>
-                        <button onClick={onExit} className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors" title="Logout & Exit">
-                            <LogOut size={18} />
+                        <button onClick={onExit} className="p-3 bg-white/5 text-slate-400 hover:text-white rounded-2xl hover:bg-white/10 transition-all border border-white/5" title="Abort Session">
+                            <LogOut size={20} />
                         </button>
                     </div>
                 </div>
 
-                {/* Progress Bar */}
-                <div className="w-full bg-slate-100 h-1 shrink-0">
-                    <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${((currentStep + 1) / STEPS.length) * 100}%` }}></div>
+                <div className="w-full bg-slate-100 h-1.5 shrink-0">
+                    <div className="h-full bg-emerald-500 transition-all duration-500 shadow-[0_0_10px_#10b981]" style={{ width: `${((currentStep + 1) / STEPS.length) * 100}%` }}></div>
                 </div>
 
-                {/* Content */}
-                <div className="p-8 overflow-y-auto flex-1 custom-scrollbar">
+                <div className="p-10 overflow-y-auto flex-1 custom-scrollbar">
                     {renderStepContent()}
                 </div>
 
-                {/* Footer Nav */}
                 {STEPS[currentStep].id !== 'activation' && (
-                    <div className="p-6 border-t border-slate-100 flex justify-between shrink-0 bg-white">
+                    <div className="p-8 border-t border-slate-50 flex justify-between items-center shrink-0 bg-white">
                         <button 
                             disabled={currentStep === 0} 
                             onClick={() => setCurrentStep(currentStep - 1)}
-                            className="px-6 py-2 text-slate-500 font-bold disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="px-6 py-2 text-slate-400 font-black uppercase tracking-widest text-[10px] hover:text-slate-900 disabled:opacity-0 transition-all"
                         >
                             Back
                         </button>
                         
                         <button 
                             onClick={handleNext}
-                            disabled={loading || (currentStep === 0 && !outletData.restaurantName)} // Simple validation
-                            className="px-8 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 flex items-center gap-2 transition-colors disabled:opacity-50"
+                            disabled={loading || (currentStep === 0 && !outletData.restaurantName)}
+                            className="px-10 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-600 transition-all flex items-center gap-3 shadow-xl shadow-slate-900/10 active:scale-95 disabled:opacity-30"
                         >
-                            {loading ? <Loader2 className="animate-spin" size={18}/> : <>Next Step <ArrowRight size={18} /></>}
+                            {loading ? <Loader2 className="animate-spin" size={16}/> : <>Next Protocol <ArrowRight size={16} /></>}
                         </button>
                     </div>
                 )}
@@ -446,3 +493,10 @@ export default function OnboardingWizard({ onComplete, onExit }: OnboardingWizar
         </div>
     );
 }
+
+// Minimal placeholder for missing icon if needed
+const Users = ({ size, className }: { size: number, className?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+  </svg>
+);

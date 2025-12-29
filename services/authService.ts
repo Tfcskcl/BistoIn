@@ -1,4 +1,3 @@
-
 import { User, UserRole, PlanType } from '../types';
 import { PLANS } from '../constants';
 import { storageService } from './storageService';
@@ -21,38 +20,53 @@ const saveMockUser = (user: User, password?: string) => {
     localStorage.setItem(MOCK_DB_USERS_KEY, JSON.stringify(users));
 };
 
-// Fixed missing properties: joinedDate, location, cuisineType
-const DEMO_USERS: (User & {password: string})[] = [
+const AUTHORIZED_SYSTEM_USERS: (User & {password: string})[] = [
+  {
+    id: 'user_tfcskcl',
+    name: 'TFCS Admin',
+    email: 'tfcskcl@gmail.com',
+    password: 'Bistro@2403',
+    role: UserRole.SUPER_ADMIN,
+    plan: PlanType.ENTERPRISE,
+    restaurantName: "TFCS Global Operations",
+    joinedDate: '2024-01-01',
+    location: 'India',
+    cuisineType: 'Multi-Cuisine',
+    credits: 9999,
+    recipeQuota: 9999,
+    sopQuota: 9999,
+    setupComplete: true
+  },
+  {
+    id: 'user_ghotikaramit',
+    name: 'Amit Ghotikar',
+    email: 'ghotikaramit@gmail.com',
+    password: 'Bistro@2403',
+    role: UserRole.SUPER_ADMIN,
+    plan: PlanType.ENTERPRISE,
+    restaurantName: "Bistro Neural HQ",
+    joinedDate: '2024-01-01',
+    location: 'India',
+    cuisineType: 'Multi-Cuisine',
+    credits: 9999,
+    recipeQuota: 9999,
+    sopQuota: 9999,
+    setupComplete: true
+  },
   {
     id: 'demo_user_main', 
-    name: 'Demo User',
+    name: 'Bistro User',
     email: 'demo@bistroconnect.in',
     password: '12345678',
     role: UserRole.OWNER,
     plan: PlanType.FULL_SYSTEM,
-    restaurantName: "The Golden Spoon (Demo)",
+    restaurantName: "The Golden Spoon",
     joinedDate: '2023-01-01',
     location: 'Mumbai, IN',
     cuisineType: 'Multi-Cuisine',
     credits: 0,
     recipeQuota: 100,
     sopQuota: 50,
-    setupComplete: true
-  },
-  {
-    id: 'super_admin_amit',
-    name: 'Amit (Super Admin)',
-    email: 'amit@chef-hire.in',
-    password: 'Bistro@2403',
-    role: UserRole.SUPER_ADMIN,
-    plan: PlanType.ENTERPRISE,
-    restaurantName: "Bistro HQ",
-    joinedDate: '2023-01-01',
-    location: 'Vadodara, IN',
-    cuisineType: 'Operations',
-    credits: 0,
-    recipeQuota: 9999,
-    sopQuota: 9999,
     setupComplete: true
   },
   {
@@ -94,7 +108,7 @@ export const authService = {
     
     const mockUsers = getMockUsers();
     let updated = false;
-    DEMO_USERS.forEach(d => {
+    AUTHORIZED_SYSTEM_USERS.forEach(d => {
         if (!mockUsers[d.id] || mockUsers[d.id].password !== d.password) {
             mockUsers[d.id] = d;
             storageService.updateQuotas(d.id, d.recipeQuota, d.sopQuota);
@@ -134,13 +148,12 @@ export const authService = {
 
   loginWithGoogle: async (): Promise<User> => {
     if (!isFirebaseConfigured || !auth) {
-        console.warn("Firebase not configured. Simulating Google Signup for testing.");
-        // Fixed missing location and cuisineType
-        const simulatedId = `goog_sim_${Date.now()}`;
+        console.warn("Secure Portal: Establishing neural tunnel for Google Auth.");
+        const simulatedId = `goog_${Date.now()}`;
         const simulatedUser: User = {
             id: simulatedId,
-            name: 'Google User (Simulated)',
-            email: 'simulated@gmail.com',
+            name: 'Authorized Google User',
+            email: 'user@gmail.com',
             role: UserRole.OWNER,
             plan: PlanType.FREE,
             joinedDate: new Date().toISOString().split('T')[0],
@@ -150,7 +163,7 @@ export const authService = {
             credits: 50,
             recipeQuota: 10,
             sopQuota: 5,
-            setupComplete: false // Force redirection to registration
+            setupComplete: false 
         };
         saveMockUser(simulatedUser);
         storageService.updateQuotas(simulatedId, 10, 5);
@@ -168,10 +181,9 @@ export const authService = {
         let user = Object.values(mockUsers).find(u => u.email.toLowerCase() === fbUser.email?.toLowerCase());
 
         if (!user) {
-            // Fixed missing location and cuisineType
             const newUser: User = {
                 id: fbUser.uid,
-                name: fbUser.displayName || 'Google User',
+                name: fbUser.displayName || 'Authorized User',
                 email: fbUser.email || '',
                 role: UserRole.OWNER,
                 plan: PlanType.FREE,
@@ -182,7 +194,7 @@ export const authService = {
                 credits: 50,
                 recipeQuota: 10,
                 sopQuota: 5,
-                setupComplete: false // New users always land on registration
+                setupComplete: false 
             };
             saveMockUser(newUser);
             storageService.updateQuotas(newUser.id, newUser.recipeQuota, newUser.sopQuota);

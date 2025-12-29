@@ -16,12 +16,21 @@ interface LandingProps {
 
 export const Landing: React.FC<LandingProps> = ({ onGetStarted, onOpenLegal, onOpenEnterprise }) => {
   const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const scrollToSection = (id: string) => {
+    setMobileMenuOpen(false);
+    const el = document.getElementById(id);
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 font-sans text-slate-100 overflow-x-hidden">
@@ -34,14 +43,15 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onOpenLegal, onO
       </div>
 
       {/* Navigation */}
-      <nav className={`fixed w-full z-50 transition-all duration-500 border-b ${scrolled ? 'bg-slate-950/80 backdrop-blur-xl border-slate-800 py-3' : 'bg-transparent border-transparent py-6'}`}>
+      <nav className={`fixed w-full z-50 transition-all duration-500 border-b ${scrolled || mobileMenuOpen ? 'bg-slate-950/80 backdrop-blur-xl border-slate-800 py-3' : 'bg-transparent border-transparent py-6'}`}>
         <div className="max-w-7xl mx-auto px-8 flex items-center justify-between">
           <Logo iconSize={30} light={true} />
           
+          {/* Desktop Links */}
           <div className="hidden md:flex items-center gap-10">
-            <button onClick={() => {}} className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Vision AI</button>
-            <button onClick={() => {}} className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Neural OS</button>
-            <button onClick={() => {}} className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Enterprise</button>
+            <button onClick={() => scrollToSection('vision-features')} className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Vision AI</button>
+            <button onClick={() => scrollToSection('os-features')} className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Neural OS</button>
+            <button onClick={onOpenEnterprise} className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Enterprise</button>
             <div className="flex items-center gap-4">
                 <button onClick={onGetStarted} className="text-sm font-bold text-slate-100 hover:text-emerald-400 transition-colors">Login</button>
                 <button onClick={onGetStarted} className="px-6 py-2.5 bg-emerald-600 text-slate-950 text-sm font-black rounded-full hover:bg-emerald-400 hover:scale-105 transition-all shadow-lg shadow-emerald-500/20">
@@ -49,7 +59,29 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onOpenLegal, onO
                 </button>
             </div>
           </div>
+
+          {/* Mobile Toggle */}
+          <button 
+            className="md:hidden p-2 text-slate-400 hover:text-white transition-colors"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
         </div>
+
+        {/* Mobile Menu Overlay */}
+        {mobileMenuOpen && (
+            <div className="md:hidden absolute top-full left-0 w-full bg-slate-950 border-b border-slate-800 p-8 space-y-6 animate-fade-in-up shadow-2xl">
+                <button onClick={() => scrollToSection('vision-features')} className="block w-full text-left text-lg font-bold text-slate-300 hover:text-white">Vision AI</button>
+                <button onClick={() => scrollToSection('os-features')} className="block w-full text-left text-lg font-bold text-slate-300 hover:text-white">Neural OS</button>
+                <button onClick={() => { setMobileMenuOpen(false); onOpenEnterprise?.(); }} className="block w-full text-left text-lg font-bold text-slate-300 hover:text-white">Enterprise</button>
+                <div className="h-px bg-slate-800"></div>
+                <div className="flex flex-col gap-4">
+                    <button onClick={() => { setMobileMenuOpen(false); onGetStarted(); }} className="w-full py-4 border border-slate-700 rounded-xl font-bold">Login</button>
+                    <button onClick={() => { setMobileMenuOpen(false); onGetStarted(); }} className="w-full py-4 bg-emerald-600 text-slate-950 font-black rounded-xl shadow-lg">Initialize System</button>
+                </div>
+            </div>
+        )}
       </nav>
 
       {/* Hero Section */}
@@ -91,7 +123,7 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onOpenLegal, onO
             </div>
 
             {/* Featured Interface Mockup */}
-            <div className="mt-24 w-full max-w-6xl relative animate-fade-in-up" style={{animationDelay: '400ms'}}>
+            <div id="vision-features" className="mt-24 w-full max-w-6xl relative animate-fade-in-up" style={{animationDelay: '400ms'}}>
                 <div className="absolute inset-0 bg-emerald-500/10 blur-[100px] rounded-full"></div>
                 <div className="relative glass rounded-3xl p-4 border border-slate-800 shadow-2xl overflow-hidden group">
                     <div className="flex items-center gap-2 mb-4 px-4 py-2 border-b border-slate-800/50">
@@ -105,7 +137,7 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onOpenLegal, onO
                         </div>
                     </div>
                     <div className="grid grid-cols-12 gap-4 aspect-video">
-                        <div className="col-span-8 bg-slate-950 rounded-xl overflow-hidden relative border border-slate-800">
+                        <div className="col-span-12 lg:col-span-8 bg-slate-950 rounded-xl overflow-hidden relative border border-slate-800">
                              <img src="https://images.unsplash.com/photo-1556910103-1c02745a30bf?auto=format&fit=crop&w=1200&q=80" className="w-full h-full object-cover opacity-40 grayscale group-hover:grayscale-0 transition-all duration-1000" />
                              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent"></div>
                              
@@ -128,7 +160,7 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onOpenLegal, onO
                                 </div>
                              </div>
                         </div>
-                        <div className="col-span-4 flex flex-col gap-4">
+                        <div className="hidden lg:flex col-span-4 flex-col gap-4">
                             <div className="flex-1 glass p-6 rounded-xl border-slate-800">
                                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Neural Logs</p>
                                 <div className="space-y-4 font-mono text-[9px]">
@@ -153,7 +185,7 @@ export const Landing: React.FC<LandingProps> = ({ onGetStarted, onOpenLegal, onO
       </header>
 
       {/* Arcis-Style Bento Solutions */}
-      <section className="py-32 relative z-10 px-8">
+      <section id="os-features" className="py-32 relative z-10 px-8">
           <div className="max-w-7xl mx-auto">
               <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
                   <div>
