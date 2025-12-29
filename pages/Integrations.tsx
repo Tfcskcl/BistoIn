@@ -63,10 +63,15 @@ export const Integrations: React.FC = () => {
           const envValid = hasValidApiKey();
           const active = selected || envValid;
           
-          if (active !== isGatewayActive) {
-              setIsGatewayActive(active);
-              if (active) setHandshakeStep(3);
-              else if (!active && handshakeStep >= 3) setHandshakeStep(1);
+          // Rule: If we are already online, don't flip back to offline based on the interval
+          // This mitigates the race condition where hasSelectedApiKey is briefly false during injection
+          if (active && !isGatewayActive) {
+              setIsGatewayActive(true);
+              setHandshakeStep(3);
+          } else if (!active && !envValid && isGatewayActive && !(window as any).aistudio) {
+              // Only reset if there's no provider AND no env key
+              setIsGatewayActive(false);
+              setHandshakeStep(1);
           }
       };
 
@@ -93,14 +98,17 @@ export const Integrations: React.FC = () => {
 
   const handleNeuralHandshake = async () => {
       setIsVerifying(true);
-      // Call the provisioning helper
-      const result = await openNeuralGateway();
       
-      // Rule: Assume key selection was successful to mitigate race condition
-      if ((window as any).aistudio || result || hasValidApiKey()) {
+      // Step 1: Trigger the selection
+      const success = await openNeuralGateway();
+      
+      // Step 2: Immediately assume success to move past the standby screen
+      // Per Guidelines: Assume selection was successful and proceed.
+      if (success || (window as any).aistudio || hasValidApiKey()) {
           setIsGatewayActive(true);
           setHandshakeStep(3);
       }
+      
       setIsVerifying(false);
   };
 
@@ -133,7 +141,7 @@ export const Integrations: React.FC = () => {
           metadata: {
               projectName: "BistroConnect_Project_Active",
               exportDate: new Date().toISOString(),
-              version: "2.5.3",
+              version: "2.5.4",
               engine: "Gemini-3-Pro-Unified"
           },
           data: {

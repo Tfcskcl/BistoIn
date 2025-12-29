@@ -17,7 +17,7 @@ export const openNeuralGateway = async (): Promise<boolean> => {
             return false;
         }
     }
-    // If running in a context without aistudio provider (e.g. local preview with process.env.API_KEY)
+    // Fallback check for standard environments
     return hasValidApiKey();
 };
 
@@ -27,11 +27,13 @@ export const openNeuralGateway = async (): Promise<boolean> => {
  */
 export const hasValidApiKey = (): boolean => {
     const key = process.env.API_KEY;
-    const isValid = !!key && 
-                    String(key).toLowerCase() !== "undefined" && 
-                    String(key).toLowerCase() !== "null" && 
-                    String(key).trim().length >= 8;
-    return isValid;
+    // Build systems sometimes inject "undefined" or "null" as actual strings
+    const isPlaceholder = !key || 
+                         String(key).toLowerCase() === "undefined" || 
+                         String(key).toLowerCase() === "null" || 
+                         String(key).trim() === "";
+                         
+    return !isPlaceholder && String(key).trim().length >= 8;
 };
 
 /**
@@ -39,11 +41,10 @@ export const hasValidApiKey = (): boolean => {
  * Strictly validates the process.env.API_KEY to prevent library-level crashes.
  */
 const getAI = () => {
-    const key = process.env.API_KEY;
     if (!hasValidApiKey()) {
         throw new Error("NEURAL_GATEWAY_STANDBY: System requires a valid API Key. Please establish a link via Nexus Control.");
     }
-    return new GoogleGenAI({ apiKey: String(key).trim() });
+    return new GoogleGenAI({ apiKey: String(process.env.API_KEY).trim() });
 };
 
 /**
@@ -53,6 +54,7 @@ const getAI = () => {
 const handleNeuralError = async (err: any) => {
     if (err.message && err.message.includes("Requested entity was not found")) {
         console.warn("Nexus Gateway: Authentication Expired. Resetting Link.");
+        // Force reopen the selection dialog
         await openNeuralGateway();
         throw new Error("NEURAL_SESSION_RESET: Gateway link reset. Please retry your request.");
     }
