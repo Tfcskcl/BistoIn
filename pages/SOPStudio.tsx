@@ -3,15 +3,17 @@ import React, { useState, useEffect } from 'react';
 import { User, SOP, SOPRequest, UserRole } from '../types';
 import { generateSOP } from '../services/geminiService';
 import { storageService } from '../services/storageService';
-import { FileText, Loader2, Sparkles, Save, Wallet, BookOpen, Share2, CheckCircle2, Clock, Link, Globe, Lock, Copy, X, Mail, Printer } from 'lucide-react';
+// Added AlertTriangle, Package, ListChecks, User as UserIcon for PublicSOPViewer
+import { FileText, Loader2, Sparkles, Save, Wallet, BookOpen, Share2, CheckCircle2, Clock, Link, Globe, Lock, Copy, X, Mail, Printer, AlertTriangle, Package, ListChecks, User as UserIcon } from 'lucide-react';
 import { Logo } from '../components/Logo';
 
 interface SOPStudioProps {
   user: User;
   onUserUpdate?: (user: User) => void;
+  initialSop?: SOP | null;
 }
 
-export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
+export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate, initialSop }) => {
   const isAdmin = [UserRole.ADMIN, UserRole.SUPER_ADMIN].includes(user.role);
   const [viewMode, setViewMode] = useState<'create' | 'saved' | 'requests'>('create');
   const [topic, setTopic] = useState('');
@@ -20,7 +22,6 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
   const [error, setError] = useState<string | null>(null);
   const [savedSOPs, setSavedSOPs] = useState<SOP[]>([]);
   
-  // Share Modal State
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareSOP, setShareSOP] = useState<SOP | null>(null);
   const [shareLink, setShareLink] = useState('');
@@ -28,7 +29,11 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
 
   useEffect(() => {
     loadSavedSOPs();
-  }, [user.id]);
+    if (initialSop) {
+        setGeneratedSOP(initialSop);
+        setViewMode('create');
+    }
+  }, [user.id, initialSop]);
 
   const loadSavedSOPs = () => setSavedSOPs(storageService.getSavedSOPs(user.id));
 
@@ -86,7 +91,6 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
 
   const openShareModal = (sop: SOP) => {
       setShareSOP(sop);
-      // Generate a demo link using current origin
       setShareLink(`${window.location.origin}?viewSop=${sop.sop_id}`);
       setShareModalOpen(true);
       setCopySuccess(false);
@@ -102,10 +106,10 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
     <div className="h-[calc(100vh-6rem)] flex flex-col gap-6 relative">
       <div className="flex justify-between items-center">
         <div className="flex gap-2">
-          <button onClick={() => setViewMode('create')} className={`px-4 py-2 rounded-lg text-sm font-bold ${viewMode === 'create' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'}`}>Create SOP</button>
-          <button onClick={() => setViewMode('saved')} className={`px-4 py-2 rounded-lg text-sm font-bold ${viewMode === 'saved' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'}`}>Saved Library</button>
+          <button onClick={() => setViewMode('create')} className={`px-4 py-2 rounded-lg text-sm font-bold ${viewMode === 'create' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>Create SOP</button>
+          <button onClick={() => setViewMode('saved')} className={`px-4 py-2 rounded-lg text-sm font-bold ${viewMode === 'saved' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>Saved Library</button>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-800 rounded-full text-xs font-bold"><Wallet size={12}/> SOPs Left: {user.sopQuota}</div>
+        <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 rounded-full text-xs font-bold"><Wallet size={12}/> SOPs Left: {user.sopQuota}</div>
       </div>
 
       <div className="flex-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col transition-colors">
@@ -116,7 +120,7 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
                <div className="space-y-4">
                  <div>
                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">SOP Topic</label>
-                   <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g. Closing Checklist" className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:bg-slate-800 dark:text-white" />
+                   <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g. Closing Checklist" className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
                  </div>
                  {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg">{error}</div>}
                  <button onClick={handleGenerate} disabled={isGenerating || !topic} className="w-full py-3 bg-slate-900 text-white font-bold rounded-lg flex items-center justify-center gap-2 hover:opacity-90">
@@ -127,7 +131,7 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
             <div className="flex-1 p-8 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/50">
                {generatedSOP ? (
                  <div className="max-w-4xl mx-auto bg-white dark:bg-slate-900 p-8 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
-                    <div className="flex justify-between items-start mb-8 border-b pb-4">
+                    <div className="flex justify-between items-start mb-8 border-b pb-4 dark:border-slate-800">
                        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{generatedSOP.title}</h1>
                        <div className="flex gap-2">
                            <button onClick={() => openShareModal(generatedSOP)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-lg flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800">
@@ -138,7 +142,7 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
                            </button>
                        </div>
                     </div>
-                    {/* Render SOP Details */}
+                    
                     <div className="space-y-6">
                         <div>
                             <h3 className="font-bold text-slate-800 dark:text-white mb-2">Scope & Prerequisites</h3>
@@ -148,7 +152,7 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
                         <div>
                             <h3 className="font-bold text-slate-800 dark:text-white mb-2">Procedure</h3>
                             <div className="space-y-2">
-                                {generatedSOP.stepwise_procedure.map((s,i)=>(
+                                {Array.isArray(generatedSOP.stepwise_procedure) ? generatedSOP.stepwise_procedure.map((s,i)=>(
                                     <div key={i} className="flex gap-3 text-sm p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
                                         <span className="font-bold text-slate-400">{s.step_no}.</span>
                                         <div className="flex-1">
@@ -159,17 +163,21 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
                                             </div>
                                         </div>
                                     </div>
-                                ))}
+                                )) : <p className="text-slate-400 italic text-sm">No steps defined.</p>}
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-6">
                             <div>
                                 <h3 className="font-bold text-slate-800 dark:text-white mb-2 text-sm uppercase">Equipment</h3>
-                                <ul className="list-disc pl-5 text-sm text-slate-600 dark:text-slate-300">{generatedSOP.materials_equipment.map((m,i)=><li key={i}>{m}</li>)}</ul>
+                                <ul className="list-disc pl-5 text-sm text-slate-600 dark:text-slate-300">
+                                    {Array.isArray(generatedSOP.materials_equipment) ? generatedSOP.materials_equipment.map((m,i)=><li key={i}>{m}</li>) : <li>Standard equipment</li>}
+                                </ul>
                             </div>
                             <div>
                                 <h3 className="font-bold text-slate-800 dark:text-white mb-2 text-sm uppercase">KPIs</h3>
-                                <ul className="list-disc pl-5 text-sm text-slate-600 dark:text-slate-300">{generatedSOP.kpis.map((k,i)=><li key={i}>{k}</li>)}</ul>
+                                <ul className="list-disc pl-5 text-sm text-slate-600 dark:text-slate-300">
+                                    {Array.isArray(generatedSOP.kpis) ? generatedSOP.kpis.map((k,i)=><li key={i}>{k}</li>) : <li>Operational metrics</li>}
+                                </ul>
                             </div>
                         </div>
                     </div>
@@ -185,14 +193,16 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
         )}
         {viewMode === 'saved' && (
            <div className="p-6 h-full flex flex-col">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto custom-scrollbar">
                  {savedSOPs.map((sop, idx) => (
-                     <div key={idx} className="relative bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl p-5 hover:border-blue-500 dark:hover:border-blue-500 cursor-pointer group transition-all shadow-sm hover:shadow-md">
+                     <div key={idx} className="relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 hover:border-blue-500 dark:hover:border-blue-500 cursor-pointer group transition-all shadow-sm hover:shadow-md">
                         <div onClick={() => {setGeneratedSOP(sop); setViewMode('create');}}>
                             <h4 className="font-bold text-lg text-slate-800 dark:text-white mb-1">{sop.title}</h4>
                             <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">{sop.scope}</p>
                             <div className="mt-3 flex gap-2">
-                                <span className="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded">{sop.stepwise_procedure.length} Steps</span>
+                                <span className="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded">
+                                    {Array.isArray(sop.stepwise_procedure) ? sop.stepwise_procedure.length : 0} Steps
+                                </span>
                             </div>
                         </div>
                         <button 
@@ -205,7 +215,8 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
                      </div>
                  ))}
                  {savedSOPs.length === 0 && (
-                     <div className="col-span-full text-center py-12 text-slate-400">
+                     <div className="col-span-full text-center py-12 text-slate-400 opacity-60 flex flex-col items-center">
+                         <FileText size={48} className="mb-4" />
                          <p>No SOPs saved yet.</p>
                      </div>
                  )}
@@ -214,7 +225,6 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
         )}
       </div>
 
-      {/* Share Modal */}
       {shareModalOpen && shareSOP && (
           <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-white dark:bg-slate-900 rounded-xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 animate-scale-in">
@@ -276,107 +286,114 @@ export const SOPStudio: React.FC<SOPStudioProps> = ({ user, onUserUpdate }) => {
   );
 };
 
-// --- PUBLIC SOP VIEWER COMPONENT ---
-export const PublicSOPViewer: React.FC<{ sopId: string, onExit: () => void }> = ({ sopId, onExit }) => {
+// Added PublicSOPViewer for public SOP access links
+export const PublicSOPViewer: React.FC<{ sopId: string; onExit: () => void }> = ({ sopId, onExit }) => {
     const [sop, setSop] = useState<SOP | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Simulation: Try to find in any accessible storage or use a mock
-        // In a real app, this would fetch from an API endpoint by ID
-        const mockFetch = () => {
-            // Attempt to find in local storage (demo mode)
-            let foundSop: SOP | undefined;
+        const findSop = () => {
+            // Scan through all localStorage keys for any saved SOPs to support public access links
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
-                if (key && key.includes('saved_sops')) {
-                    const sops = JSON.parse(localStorage.getItem(key) || '[]');
-                    foundSop = sops.find((s: SOP) => s.sop_id === sopId);
-                    if (foundSop) break;
+                if (key && key.startsWith('bistro_') && key.endsWith('_saved_sops')) {
+                    try {
+                        const sops: SOP[] = JSON.parse(localStorage.getItem(key) || '[]');
+                        const found = sops.find(s => s.sop_id === sopId);
+                        if (found) return found;
+                    } catch (e) {
+                        console.error("Error searching public SOP:", e);
+                    }
                 }
             }
-            
-            // If not found, return a dummy for demo purposes so the link works
-            if (!foundSop) {
-                foundSop = {
-                    sop_id: sopId,
-                    title: "Demo SOP: Opening Checklist",
-                    scope: "Front of House",
-                    prerequisites: "Uniform, Keys",
-                    materials_equipment: ["POS", "Lights"],
-                    stepwise_procedure: [
-                        { step_no: 1, action: "Unlock main doors", responsible_role: "Manager" },
-                        { step_no: 2, action: "Turn on lights and music", responsible_role: "Staff" }
-                    ],
-                    critical_control_points: [],
-                    monitoring_checklist: [],
-                    kpis: [],
-                    quick_troubleshooting: ""
-                };
-            }
-            setSop(foundSop);
-            setLoading(false);
+            return null;
         };
-        
-        setTimeout(mockFetch, 800);
+
+        setSop(findSop());
+        setLoading(false);
     }, [sopId]);
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-slate-400" size={32} /></div>;
+    if (loading) return (
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8">
+            <Loader2 className="animate-spin text-blue-600" size={48} />
+        </div>
+    );
 
-    if (!sop) return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500">SOP Not Found</div>;
+    if (!sop) return (
+        <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-8 text-center">
+            <AlertTriangle className="text-amber-500 mb-4" size={48} />
+            <h1 className="text-2xl font-bold text-slate-900 mb-2">SOP Not Found</h1>
+            <p className="text-slate-500 mb-6">This document may have been removed or the link is invalid.</p>
+            <button onClick={onExit} className="px-6 py-2 bg-slate-900 text-white font-bold rounded-lg">Return to App</button>
+        </div>
+    );
 
     return (
-        <div className="min-h-screen bg-slate-50 font-sans">
-            <div className="max-w-3xl mx-auto p-6">
-                <div className="flex justify-between items-center mb-8">
+        <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+            <nav className="border-b border-slate-200 py-4 px-6 bg-white sticky top-0 z-10 shadow-sm">
+                <div className="max-w-4xl mx-auto flex items-center justify-between">
                     <Logo iconSize={24} />
-                    <div className="flex gap-2">
-                        <button onClick={() => window.print()} className="p-2 text-slate-500 hover:text-slate-900 bg-white rounded-full shadow-sm">
-                            <Printer size={20} />
-                        </button>
-                        <button onClick={onExit} className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg">
-                            Login
-                        </button>
-                    </div>
+                    <button onClick={onExit} className="text-sm font-bold text-slate-600 hover:text-slate-900 flex items-center gap-2">
+                         Exit Viewer
+                    </button>
                 </div>
-
-                <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 print:shadow-none print:border-0">
-                    <div className="border-b border-slate-100 pb-6 mb-6">
-                        <h1 className="text-3xl font-bold text-slate-900 mb-2">{sop.title}</h1>
-                        <p className="text-slate-500 text-sm">Scope: {sop.scope}</p>
-                    </div>
-
+            </nav>
+            <div className="max-w-4xl mx-auto py-12 px-6">
+                <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+                    <h1 className="text-3xl font-black mb-2">{sop.title}</h1>
+                    <p className="text-sm text-slate-500 mb-8 border-b pb-4">Standard Operating Procedure • Public Access</p>
+                    
                     <div className="space-y-8">
                         <div>
-                            <h3 className="font-bold text-slate-900 mb-3 uppercase text-xs tracking-wider">Procedure</h3>
-                            <div className="space-y-0">
-                                {sop.stepwise_procedure.map((step, i) => (
-                                    <div key={i} className="flex gap-4 p-3 border-b border-slate-50 last:border-0">
-                                        <span className="font-bold text-slate-400 w-6">{step.step_no}.</span>
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Scope & Context</h3>
+                            <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                <p className="text-sm"><strong>Scope:</strong> {sop.scope}</p>
+                                <p className="text-sm mt-1"><strong>Prerequisites:</strong> {sop.prerequisites}</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Step-wise Procedure</h3>
+                            <div className="space-y-3">
+                                {Array.isArray(sop.stepwise_procedure) && sop.stepwise_procedure.map((step, i) => (
+                                    <div key={i} className="flex gap-4 p-4 bg-white border border-slate-100 rounded-xl shadow-sm">
+                                        <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold shrink-0">{step.step_no}</div>
                                         <div className="flex-1">
-                                            <p className="text-slate-800 font-medium">{step.action}</p>
-                                            <span className="text-xs text-slate-400 mt-1 block">{step.responsible_role}</span>
+                                            <p className="font-bold text-slate-800">{step.action}</p>
+                                            <div className="flex gap-4 mt-2 text-[10px] font-bold text-slate-400 uppercase">
+                                                <span className="flex items-center gap-1"><UserIcon size={12}/> {step.responsible_role}</span>
+                                                {step.time_limit && <span className="flex items-center gap-1"><Clock size={12}/> {step.time_limit}</span>}
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
-                        {sop.materials_equipment.length > 0 && (
-                            <div className="bg-slate-50 p-6 rounded-lg">
-                                <h3 className="font-bold text-slate-900 mb-3 uppercase text-xs tracking-wider">Equipment Required</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                    <Package size={14}/> Materials & Equipment
+                                </h3>
                                 <ul className="list-disc pl-5 space-y-1 text-sm text-slate-600">
-                                    {sop.materials_equipment.map((m, i) => <li key={i}>{m}</li>)}
+                                    {Array.isArray(sop.materials_equipment) && sop.materials_equipment.map((m, i) => <li key={i}>{m}</li>)}
                                 </ul>
                             </div>
-                        )}
+                            <div className="p-6 bg-emerald-50/50 rounded-2xl border border-emerald-100">
+                                <h3 className="text-xs font-black text-emerald-600/50 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                    <ListChecks size={14}/> Critical Control Points
+                                </h3>
+                                <ul className="list-disc pl-5 space-y-1 text-sm text-emerald-800">
+                                    {Array.isArray(sop.critical_control_points) && sop.critical_control_points.map((c, i) => <li key={i}>{c}</li>)}
+                                </ul>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                
-                <div className="text-center mt-8 text-slate-400 text-xs">
-                    Powered by BistroIntelligence
-                </div>
             </div>
+            <footer className="py-12 text-center text-slate-400 text-xs">
+                 <p>© BistroIntelligence • Secured Operational Document</p>
+            </footer>
         </div>
     );
 };

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, ChefHat, FileText, TrendingUp, Database, CreditCard, LogOut, Clapperboard, RefreshCw, GitMerge, BookOpen, Package, Camera } from 'lucide-react';
+import { LayoutDashboard, ChefHat, FileText, TrendingUp, Database, CreditCard, LogOut, Clapperboard, RefreshCw, GitMerge, BookOpen, Package, Camera, PieChart, PenTool } from 'lucide-react';
 import { AppView, User, PlanType, UserRole } from '../types';
 import { Logo } from './Logo';
 import { storageService } from '../services/storageService';
@@ -26,9 +26,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, use
     { id: AppView.INVENTORY, label: 'Inventory Manager', icon: Package, allowedRoles: [UserRole.OWNER, UserRole.ADMIN, UserRole.SUPER_ADMIN] },
     { id: AppView.RECIPES, label: 'Recipe & Costing', icon: ChefHat, allowedRoles: [UserRole.OWNER, UserRole.ADMIN, UserRole.SUPER_ADMIN] },
     { id: AppView.MENU_GENERATOR, label: 'Menu Generator', icon: BookOpen, allowedRoles: [UserRole.OWNER, UserRole.ADMIN, UserRole.SUPER_ADMIN] },
+    { id: AppView.MENU_ENGINEERING, label: 'Menu Engineering', icon: PieChart, allowedRoles: [UserRole.OWNER, UserRole.ADMIN, UserRole.SUPER_ADMIN] },
     { id: AppView.SOP, label: 'SOP Studio', icon: FileText, allowedRoles: [UserRole.OWNER, UserRole.ADMIN, UserRole.SUPER_ADMIN] },
     { id: AppView.CCTV_ANALYTICS, label: 'Staff Movement', icon: Camera, allowedRoles: [UserRole.OWNER, UserRole.ADMIN, UserRole.SUPER_ADMIN] },
-    { id: AppView.KITCHEN_WORKFLOW, label: 'Kitchen Workflow', icon: GitMerge, allowedRoles: [UserRole.OWNER, UserRole.ADMIN, UserRole.SUPER_ADMIN] },
+    { id: AppView.KITCHEN_DESIGNING, label: 'Kitchen Designing', icon: PenTool, allowedRoles: [UserRole.OWNER, UserRole.ADMIN, UserRole.SUPER_ADMIN] },
     { id: AppView.VIDEO, label: 'Marketing Studio', icon: Clapperboard, allowedRoles: [UserRole.OWNER, UserRole.ADMIN, UserRole.SUPER_ADMIN] },
     { id: AppView.STRATEGY, label: 'Strategy AI', icon: TrendingUp, allowedRoles: [UserRole.OWNER, UserRole.SUPER_ADMIN] },
     { id: AppView.INTEGRATIONS, label: 'Data & Integrations', icon: Database, allowedRoles: [UserRole.OWNER, UserRole.SUPER_ADMIN, UserRole.ADMIN] },

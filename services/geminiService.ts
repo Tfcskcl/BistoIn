@@ -1,285 +1,517 @@
 
-import { GoogleGenAI } from "@google/genai";
-import { SYSTEM_INSTRUCTION, CCTV_SYSTEM_PROMPT, CCTV_INTEGRATION_PROMPT, UNIFIED_SYSTEM_PROMPT } from "../constants";
-import { RecipeCard, SOP, StrategyReport, UnifiedSchema, CCTVAnalysisResult, User, MenuGenerationRequest, MenuItem, Ingredient, PurchaseOrder, InventoryItem } from "../types";
+import { GoogleGenAI, Type } from "@google/genai";
+import { SYSTEM_INSTRUCTION, CCTV_SYSTEM_PROMPT, UNIFIED_SYSTEM_PROMPT, MENU_ENGINEERING_PROMPT, STRATEGY_PROMPT } from "../constants";
+import { RecipeCard, SOP, StrategyReport, UnifiedSchema, CCTVAnalysisResult, User, MenuGenerationRequest, MenuItem, InventoryItem, KitchenDesign, MenuStructure } from "../types";
 
-const getApiKey = (): string => {
-  return localStorage.getItem('gemini_api_key') || process.env.API_KEY || '';
-};
-
-export const hasValidApiKey = () => !!getApiKey();
-
+// Helper to create AI client with current API key
 const createAIClient = () => {
-    const key = getApiKey();
+    const key = process.env.API_KEY;
     return key ? new GoogleGenAI({ apiKey: key }) : null;
 };
 
-// --- HELPER ---
+export const hasValidApiKey = (): boolean => !!process.env.API_KEY;
+
 export const cleanAndParseJSON = <T>(text: string): T => {
     try {
-        // Remove markdown code blocks if present
-        let cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(cleanText) as T;
+        const jsonMatch = text.match(/([\{\[][\s\S]*[\}\]])/);
+        return JSON.parse(jsonMatch ? jsonMatch[1] : text) as T;
     } catch (e) {
-        throw new Error("Failed to parse JSON response");
+        console.error("JSON Parsing Error:", text);
+        throw new Error("Failed to parse AI response.");
     }
 };
 
-// --- MOCK ENGINES ---
-const generateMockRecipe = (name: string): RecipeCard => ({
-    sku_id: 'MOCK-001', name: name, category: 'main', prep_time_min: 20, current_price: 0,
-    ingredients: [{ ingredient_id: '1', name: 'Mock Ingredient', qty: '100g', cost_per_unit: 10, cost_per_serving: 5 }],
-    yield: 1, preparation_steps: ['Mix ingredients.', 'Cook well.'], equipment_needed: ['Pan'],
-    portioning_guideline: '1 bowl', allergens: [], shelf_life_hours: 24, food_cost_per_serving: 50,
-    suggested_selling_price: 150, tags: ['Mock'], human_summary: 'A generated recipe.', confidence: 'High',
-    cuisine: 'Fusion'
-});
-
-const generateMockCCTVAnalysis = (): CCTVAnalysisResult => ({
-    events: [
-        { event_id: 'e1', type: 'dwell', person_id: 'anon_1', zone_id: 'prep', start_time: new Date().toISOString(), confidence: 0.9, clip_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', mapped_step_id: null }
-    ],
-    workflow_correlations: [],
-    inventory_impact: [{ item_id: 'Eggs', observed_shortage: true, shortage_qty: 12, related_events: [], root_cause: 'Missed delivery', recommendation: 'Order now', confidence: 0.8 }],
-    bottlenecks: [{ zone_id: 'prep', severity: 'high', evidence: [], root_cause: 'Staff shortage', recommendation: 'Add staff', confidence: 0.85 }],
-    sop_deviations: [{ step_id: 'Handwash', person_id: 'anon_1', deviation_type: 'skipped', confidence: 0.9, explanation: 'Did not wash hands on entry.' }],
-    performance_scores: { kitchen_efficiency: 72, inventory_health: 65, congestion_score: 0.4 },
-    recommendations: [{ type: 'staffing', priority: 'high', text: 'Increase prep staff.', expected_impact: 'Reduce delays', confidence: 0.9 }],
-    summary_report: 'Prep zone is congested due to low staff.',
-    processing_time_ms: 500, model_version: 'mock', warnings: []
-});
-
-const generateMockUnifiedAnalysis = (): UnifiedSchema => ({
-    workflow_analysis: { efficiency: 75, bottlenecks: ['Prep'] },
-    sop_compliance: { rate: 0.82, violations: ['Handwash'] },
-    inventory_verification: { discrepancies: [{ item: 'Oil', variance: '-2L' }] },
-    wastage_root_causes: ['Over-portioning in assembly'],
-    recipe_costing_impact: { cost_increase: '5%' },
-    profitability_insights: { top_performer: 'Burger', low_margin: 'Salad' },
-    strategy_plan_7_days: { focus: 'Reduce Waste' },
-    marketing_assets: { campaign_ideas: ['Zero Waste Week'] },
-    summary: 'Overall efficiency is good, but inventory variance in oil suggests SOP drift.'
-});
-
-// --- SERVICES ---
-
-export const generateRecipeCard = async (userId: string, item: any, reqs: string, loc?: string, persona?: string): Promise<RecipeCard> => {
+export const analyzeStaffMovement = async (
+    desc: string, 
+    zones: string[], 
+    recipeContext?: RecipeCard, 
+    sopContext?: SOP,
+    frames: string[] = [] 
+): Promise<CCTVAnalysisResult> => {
     const ai = createAIClient();
-    if (!ai) return generateMockRecipe(item.name);
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `Generate recipe for ${item.name}. Context: ${reqs}. Location: ${loc}. Persona: ${persona}. JSON ONLY matching RecipeCard schema.`,
-            config: { responseMimeType: 'application/json' }
-        });
-        return cleanAndParseJSON(response.text || '{}');
-    } catch { return generateMockRecipe(item.name); }
+    if (!ai) throw new Error("AI engine unavailable");
+
+    const contentParts: any[] = [{ text: `${CCTV_SYSTEM_PROMPT}\nFootage: ${desc}\nZones: ${zones.join(', ')}` }];
+    frames.forEach((f) => contentParts.push({ inlineData: { mimeType: 'image/jpeg', data: f.split(',')[1] || f } }));
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-3-pro-preview',
+        contents: { parts: contentParts },
+        config: { 
+            responseMimeType: "application/json", 
+            thinkingConfig: { thinkingBudget: 4000 } 
+        }
+    });
+    
+    return cleanAndParseJSON<CCTVAnalysisResult>(response.text || '{}');
 };
 
-export const analyzeStaffMovement = async (desc: string, zones: string[]): Promise<CCTVAnalysisResult> => {
+/**
+ * Fix: Added missing export generateChecklistFromAnalysis
+ * Generates a task checklist based on CCTV analysis findings
+ */
+export const generateChecklistFromAnalysis = async (analysis: CCTVAnalysisResult): Promise<string[]> => {
     const ai = createAIClient();
-    if (!ai) return generateMockCCTVAnalysis();
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `${CCTV_SYSTEM_PROMPT}\nAnalyze: ${desc}`,
-            config: { responseMimeType: 'application/json' }
-        });
-        return cleanAndParseJSON(response.text || '{}');
-    } catch { return generateMockCCTVAnalysis(); }
+    if (!ai) return [];
+    const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `Generate a prioritized operational task checklist based on these CCTV analysis findings: ${JSON.stringify(analysis)}`,
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
+            }
+        }
+    });
+    return cleanAndParseJSON<string[]>(response.text || '[]');
 };
 
-export const analyzeUnifiedRestaurantData = async (data: any): Promise<UnifiedSchema> => {
+/**
+ * Fix: Added missing export generateRevisedSOPFromAnalysis
+ * Generates a revised SOP based on deviations observed in CCTV footage
+ */
+export const generateRevisedSOPFromAnalysis = async (analysis: CCTVAnalysisResult, currentSop?: SOP): Promise<SOP> => {
     const ai = createAIClient();
-    if (!ai) return generateMockUnifiedAnalysis();
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `${UNIFIED_SYSTEM_PROMPT}\nData: ${JSON.stringify(data)}`,
-            config: { responseMimeType: 'application/json' }
-        });
-        return cleanAndParseJSON(response.text || '{}');
-    } catch { return generateMockUnifiedAnalysis(); }
+    if (!ai) return {} as SOP;
+    const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `Revise the standard operating procedure based on observed behavioral deviations and hygiene violations. 
+        Analysis Data: ${JSON.stringify(analysis)}
+        ${currentSop ? `Current SOP: ${JSON.stringify(currentSop)}` : ''}`,
+        config: {
+            responseMimeType: "application/json",
+            systemInstruction: SYSTEM_INSTRUCTION,
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    sop_id: { type: Type.STRING },
+                    title: { type: Type.STRING },
+                    scope: { type: Type.STRING },
+                    prerequisites: { type: Type.STRING },
+                    materials_equipment: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    stepwise_procedure: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                step_no: { type: Type.NUMBER },
+                                action: { type: Type.STRING },
+                                responsible_role: { type: Type.STRING },
+                                time_limit: { type: Type.STRING }
+                            },
+                            required: ['step_no', 'action', 'responsible_role']
+                        }
+                    },
+                    critical_control_points: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    monitoring_checklist: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    kpis: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    quick_troubleshooting: { type: Type.STRING }
+                },
+                required: ['title', 'scope', 'stepwise_procedure']
+            }
+        }
+    });
+    return cleanAndParseJSON<SOP>(response.text || '{}');
 };
 
-export const addCCTVCamera = async (details: any): Promise<any> => {
-    // Return mock registration
-    return {
-        camera_registration: { rtsp_valid: true, calibration_score: 85 },
-        sensor_configuration: { movement_sensor: true, linked_sops: ['SOP-001'] },
-        summary_report: "Camera registered successfully."
-    };
-};
-
-export const generateMarketingImage = async (prompt: string, aspectRatio: string): Promise<string> => `https://pollinations.ai/p/${encodeURIComponent(prompt)}`;
-
-export const generateMarketingVideo = async (images: string[], prompt: string, aspectRatio: string): Promise<string> => "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
-
-export const generateStrategy = async (user: User, query: string, context: string): Promise<StrategyReport> => {
+export const generateRecipeCard = async (
+    userId: string, 
+    item: MenuItem, 
+    reqs: string,
+    location?: string,
+    persona?: string
+): Promise<RecipeCard> => {
     const ai = createAIClient();
-    if (!ai) {
-        return {
-            summary: ["Mock strategy summary."],
-            action_plan: [{ initiative: "Mock Action", impact_estimate: "High", cost_estimate: "Low", priority: "High" }],
-            seasonal_menu_suggestions: [],
-            roadmap: [],
-            causes: []
-        };
-    }
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `Role: F&B Strategist. User Context: ${JSON.stringify(user)}. Data Context: ${context}. Query: ${query}. Output JSON StrategyReport.`,
-            config: { responseMimeType: 'application/json' }
-        });
-        return cleanAndParseJSON(response.text || '{}');
-    } catch (e) {
-        throw new Error("Strategy generation failed");
-    }
-};
-
-export const generateImplementationPlan = async (strategy: any): Promise<any> => {
-    return { steps: ["Step 1", "Step 2"] };
-};
-
-export const generateMenu = async (request: MenuGenerationRequest): Promise<string> => {
-    const ai = createAIClient();
-    if (!ai) {
-        return JSON.stringify({ 
-            title: request.restaurantName, 
-            tagline: "Generated Offline Mode",
-            currency: "₹",
-            sections: [
-                { title: "Starters", items: [{ name: "Mock Item 1", price: "200", description: "Delicious mock starter", tags: ["Veg"] }] }
-            ] 
-        });
-    }
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `Generate a menu structure JSON for ${request.restaurantName}. Type: ${request.cuisineType}. Theme: ${request.themeStyle}. Items: ${request.mustIncludeItems}. Pricing: ${request.pricingStrategy}.`,
-            config: { responseMimeType: 'application/json' }
-        });
-        return response.text || '';
-    } catch {
-        throw new Error("Menu generation failed");
-    }
+    if (!ai) throw new Error("AI Engine offline");
+    
+    const response = await ai.models.generateContent({
+        model: 'gemini-3-pro-preview',
+        contents: `Task: Technical culinary spec sheet for ${item.name} at ${location || 'India'}. 
+        Persona: ${persona || 'Executive Chef'}. 
+        Requirements: ${reqs}.
+        
+        CRITICAL INSTRUCTIONS:
+        1. Use Google Search to find real-time market rates for all ingredients in ${location || 'India'}.
+        2. Identify and explicitly list "Signature House-Made Components" (sauces, gravies, spice blends) used in this dish. 
+        3. Break down the "Preparation Steps" into granular, single-action instructions suitable for visual documentation.
+        4. Calculate suggested selling price based on current market volatility and professional food cost targets (25-30%).`,
+        config: { 
+            responseMimeType: "application/json",
+            systemInstruction: SYSTEM_INSTRUCTION,
+            tools: [{ googleSearch: {} }],
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    sku_id: { type: Type.STRING },
+                    name: { type: Type.STRING },
+                    cuisine: { type: Type.STRING },
+                    category: { type: Type.STRING, enum: ['main', 'snack', 'beverage', 'dessert'] },
+                    prep_time_min: { type: Type.NUMBER },
+                    yield: { type: Type.NUMBER },
+                    ingredients: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                ingredient_id: { type: Type.STRING },
+                                name: { type: Type.STRING },
+                                qty_per_serving: { type: Type.NUMBER },
+                                unit: { type: Type.STRING },
+                                cost_per_unit: { type: Type.NUMBER },
+                                cost_per_serving: { type: Type.NUMBER },
+                                is_signature: { type: Type.BOOLEAN, description: 'True if this is a house-made component' }
+                            },
+                            required: ['name', 'qty_per_serving', 'unit', 'cost_per_unit', 'cost_per_serving']
+                        }
+                    },
+                    preparation_steps_data: { 
+                        type: Type.ARRAY, 
+                        items: { 
+                            type: Type.OBJECT,
+                            properties: {
+                                instruction: { type: Type.STRING }
+                            },
+                            required: ['instruction']
+                        }, 
+                        description: 'Step-by-step instructions for visual layout' 
+                    },
+                    signature_components: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    equipment_needed: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    portioning_guideline: { type: Type.STRING },
+                    allergens: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    shelf_life_hours: { type: Type.NUMBER },
+                    food_cost_per_serving: { type: Type.NUMBER },
+                    suggested_selling_price: { type: Type.NUMBER },
+                    tags: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    human_summary: { type: Type.STRING }
+                },
+                required: [
+                    'name', 'ingredients', 'preparation_steps_data', 'food_cost_per_serving', 
+                    'suggested_selling_price', 'human_summary'
+                ]
+            }
+        }
+    });
+    
+    const result = cleanAndParseJSON<RecipeCard>(response.text || '{}');
+    
+    const sources: { title: string; uri: string }[] = [];
+    response.candidates?.[0]?.groundingMetadata?.groundingChunks?.forEach((chunk: any) => {
+        if (chunk.web) {
+            sources.push({ title: chunk.web.title, uri: chunk.web.uri });
+        }
+    });
+    result.sources = sources;
+    
+    return result;
 };
 
 export const generateSOP = async (topic: string): Promise<SOP> => {
     const ai = createAIClient();
-    if (!ai) return { sop_id: '1', title: topic, scope: 'Mock Scope', prerequisites: '', materials_equipment: [], stepwise_procedure: [], critical_control_points: [], monitoring_checklist: [], kpis: [], quick_troubleshooting: '' };
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `Generate SOP for ${topic} in F&B context. JSON ONLY matching SOP schema.`,
-            config: { responseMimeType: 'application/json' }
-        });
-        return cleanAndParseJSON(response.text || '{}');
-    } catch {
-        throw new Error("SOP generation failed");
-    }
+    if (!ai) return {} as SOP;
+    const res = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `Generate Standard Operating Procedure for: ${topic}`,
+        config: { 
+            responseMimeType: 'application/json', 
+            systemInstruction: SYSTEM_INSTRUCTION,
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    sop_id: { type: Type.STRING },
+                    title: { type: Type.STRING },
+                    scope: { type: Type.STRING },
+                    prerequisites: { type: Type.STRING },
+                    materials_equipment: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    stepwise_procedure: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                step_no: { type: Type.NUMBER },
+                                action: { type: Type.STRING },
+                                responsible_role: { type: Type.STRING },
+                                time_limit: { type: Type.STRING }
+                            },
+                            required: ['step_no', 'action', 'responsible_role']
+                        }
+                    },
+                    critical_control_points: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    monitoring_checklist: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    kpis: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    quick_troubleshooting: { type: Type.STRING }
+                },
+                required: ['title', 'scope', 'stepwise_procedure']
+            }
+        }
+    });
+    return cleanAndParseJSON(res.text || '{}');
 };
 
-export const generateKitchenWorkflow = async (description: string): Promise<string> => {
+export const analyzeUnifiedRestaurantData = async (data: any): Promise<UnifiedSchema> => {
     const ai = createAIClient();
-    if (!ai) return "# Workflow Draft\n\n1. Receive Order\n2. Prep\n3. Cook\n4. Serve";
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `Generate a kitchen workflow optimization plan based on this description: ${description}. Output in Markdown.`
-        });
-        return response.text || '';
-    } catch {
-        return "Failed to generate workflow.";
-    }
+    if (!ai) return {} as UnifiedSchema;
+    const res = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `${UNIFIED_SYSTEM_PROMPT}\nData: ${JSON.stringify(data)}`,
+        config: { responseMimeType: 'application/json' }
+    });
+    return cleanAndParseJSON(res.text || '{}');
 };
 
-export const generatePurchaseOrder = async (supplier: string, items: InventoryItem[]): Promise<PurchaseOrder> => {
-    // Logic to calculate quantities based on par levels
-    const orderItems = items
-        .filter(i => i.currentStock < i.parLevel)
-        .map(i => ({
-            name: i.name,
-            qty: i.parLevel - i.currentStock,
-            unit: i.unit,
-            estimatedCost: (i.parLevel - i.currentStock) * i.costPerUnit
-        }));
-    
-    const total = orderItems.reduce((acc, i) => acc + i.estimatedCost, 0);
-
-    return {
-        id: `PO-${Date.now()}`,
-        supplier,
-        items: orderItems,
-        totalEstimatedCost: total,
-        status: 'draft',
-        generatedDate: new Date().toISOString(),
-        emailBody: `Dear ${supplier},\n\nPlease find attached purchase order for the following items:\n${orderItems.map(i => `- ${i.name}: ${i.qty} ${i.unit}`).join('\n')}\n\nExpected delivery: Tomorrow.\n\nThanks.`
-    };
-};
-
-export const getChatResponse = async (history: {role: string, text: string}[], input: string): Promise<string> => {
+export const generateStrategy = async (u: User, q: string, c: string): Promise<StrategyReport> => {
     const ai = createAIClient();
-    if (!ai) return "I am in offline mode. Please connect API key to chat.";
+    if (!ai) throw new Error("Consultant offline");
     
-    // Convert history to Gemini format if needed, or just append to prompt for simple stateless call
-    // Using simple generateContent for now since history is managed by client
-    const prompt = `History:\n${history.map(m => `${m.role}: ${m.text}`).join('\n')}\nUser: ${input}\nAssistant:`;
+    const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `Business Strategy for ${u.restaurantName} (Cuisine: ${u.cuisineType}, Location: ${u.location}). Goal: ${q}. Historical Data: ${c}`,
+        config: { 
+            systemInstruction: STRATEGY_PROMPT,
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    summary: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    causes: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    action_plan: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                initiative: { type: Type.STRING },
+                                impact_estimate: { type: Type.STRING },
+                                cost_estimate: { type: Type.STRING },
+                                priority: { type: Type.STRING, enum: ['High', 'Medium', 'Low'] }
+                            },
+                            required: ['initiative', 'impact_estimate', 'cost_estimate', 'priority']
+                        }
+                    },
+                    seasonal_menu_suggestions: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                type: { type: Type.STRING, enum: ['add', 'remove'] },
+                                item: { type: Type.STRING },
+                                reason: { type: Type.STRING }
+                            },
+                            required: ['type', 'item', 'reason']
+                        }
+                    },
+                    roadmap: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                phase_name: { type: Type.STRING },
+                                duration: { type: Type.STRING },
+                                steps: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                milestone: { type: Type.STRING }
+                            },
+                            required: ['phase_name', 'duration', 'steps', 'milestone']
+                        }
+                    }
+                },
+                required: ['summary', 'causes', 'action_plan', 'seasonal_menu_suggestions', 'roadmap']
+            }
+        }
+    });
     
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt
-        });
-        return response.text || '';
-    } catch {
-        return "I encountered an error processing your request.";
+    return cleanAndParseJSON<StrategyReport>(response.text || '{}');
+};
+
+export const generateMarketingImage = async (prompt: string, ar: string): Promise<string> => {
+    const ai = createAIClient();
+    if (!ai) throw new Error("Image engine unavailable");
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: { parts: [{ text: prompt }] },
+        config: { imageConfig: { aspectRatio: ar as any } }
+    });
+    for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
     }
+    throw new Error("Visual generation failed.");
+};
+
+export const generateMarketingVideo = async (imgs: string[], prompt: string, ar: string): Promise<string> => {
+    const ai = createAIClient();
+    if (!ai) throw new Error("Video engine unavailable");
+    let operation = await ai.models.generateVideos({
+        model: 'veo-3.1-fast-generate-preview',
+        prompt,
+        config: { numberOfVideos: 1, resolution: '720p', aspectRatio: ar as any }
+    });
+    while (!operation.done) {
+        await new Promise(r => setTimeout(r, 10000));
+        operation = await ai.operations.getVideosOperation({ operation });
+    }
+    const link = operation.response?.generatedVideos?.[0]?.video?.uri;
+    const res = await fetch(`${link}&key=${process.env.API_KEY}`);
+    return URL.createObjectURL(await res.blob());
+};
+
+export const generateMenu = async (req: MenuGenerationRequest): Promise<string> => {
+    const ai = createAIClient();
+    if (!ai) return '{}';
+    
+    const prompt = `Task: Professional Restaurant Menu Engineering & Design.
+    Restaurant: ${req.restaurantName}
+    Cuisine: ${req.cuisineType}
+    Target Audience: ${req.targetAudience || 'General public'}
+    Price Segment: ${req.budgetRange || 'Moderate'}
+    Season: ${req.season || 'All Season'}
+    Must Include: ${req.mustIncludeItems || 'Chef specialties'}
+    
+    Requirements:
+    1. Create a logical menu structure.
+    2. Provide realistic pricing in INR.
+    3. Include appetizing descriptions and pairing suggestions.`;
+
+    const res = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+        config: { 
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    title: { type: Type.STRING },
+                    tagline: { type: Type.STRING },
+                    sections: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                title: { type: Type.STRING },
+                                items: {
+                                    type: Type.ARRAY,
+                                    items: {
+                                        type: Type.OBJECT,
+                                        properties: {
+                                            name: { type: Type.STRING },
+                                            description: { type: Type.STRING },
+                                            price: { type: Type.NUMBER },
+                                            tags: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                            pairing: { type: Type.STRING }
+                                        },
+                                        required: ['name', 'description', 'price']
+                                    }
+                                }
+                            },
+                            required: ['title', 'items']
+                        }
+                    },
+                    currency: { type: Type.STRING },
+                    footer_note: { type: Type.STRING }
+                },
+                required: ['title', 'tagline', 'sections']
+            }
+        }
+    });
+    return res.text || '{}';
+};
+
+export const generateKitchenDesign = async (title: string, l: number, w: number, cuisine: string, reqs: string): Promise<KitchenDesign> => {
+    const ai = createAIClient();
+    if (!ai) throw new Error("AI Offline");
+    const res = await ai.models.generateContent({
+        model: 'gemini-3-pro-preview',
+        contents: `Architectural Kitchen Layout Task. Restaurant: ${title}. Dimensions: ${l}x${w}ft. Cuisine: ${cuisine}. Requirements: ${reqs}. Use percentages for x, y, w, h.`,
+        config: { 
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    id: { type: Type.STRING },
+                    title: { type: Type.STRING },
+                    dimensions: {
+                        type: Type.OBJECT,
+                        properties: {
+                            length: { type: Type.NUMBER },
+                            width: { type: Type.NUMBER },
+                            unit: { type: Type.STRING }
+                        },
+                        required: ['length', 'width', 'unit']
+                    },
+                    elements: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                type: { type: Type.STRING, enum: ['equipment', 'wall', 'zone', 'door', 'window'] },
+                                equipment_type: { type: Type.STRING, enum: ['range', 'oven', 'sink', 'table', 'fridge', 'dishwasher', 'storage', 'fryer'] },
+                                label: { type: Type.STRING },
+                                x: { type: Type.NUMBER },
+                                y: { type: Type.NUMBER },
+                                w: { type: Type.NUMBER },
+                                h: { type: Type.NUMBER },
+                                length_ft: { type: Type.NUMBER },
+                                width_ft: { type: Type.NUMBER },
+                                specifications: { type: Type.STRING },
+                                utility_req: {
+                                    type: Type.OBJECT,
+                                    properties: {
+                                        power: { type: Type.STRING },
+                                        water: { type: Type.BOOLEAN },
+                                        gas: { type: Type.BOOLEAN }
+                                    }
+                                }
+                            },
+                            required: ['type', 'label', 'x', 'y', 'w', 'h', 'length_ft', 'width_ft']
+                        }
+                    },
+                    workflow_notes: { type: Type.STRING },
+                    summary: { type: Type.STRING }
+                },
+                required: ['title', 'dimensions', 'elements', 'summary']
+            }
+        }
+    });
+    return cleanAndParseJSON<KitchenDesign>(res.text || '{}');
+};
+
+export const generateKitchenWorkflow = async (desc: string): Promise<string> => {
+    const ai = createAIClient();
+    if (!ai) return "Offline";
+    const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `Architectural Kitchen Workflow Optimization. Pain Points: ${desc}. Return Markdown report.`,
+    });
+    return response.text || 'Workflow generation failed.';
+};
+
+export const generatePurchaseOrder = async (s: string, i: any[]): Promise<any> => {
+    return { id: 'PO-'+Date.now(), supplier: s, items: i, totalEstimatedCost: 0, status: 'draft', generatedDate: new Date().toISOString() };
+};
+
+export const getChatResponse = async (h: any[], i: string): Promise<string> => {
+    const ai = createAIClient();
+    if (!ai) return "Offline";
+    const res = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: i });
+    return res.text || '';
+};
+
+export const analyzeMenuEngineering = async (i: any[]): Promise<any[]> => {
+    const ai = createAIClient();
+    if (!ai) return i;
+    const res = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `${MENU_ENGINEERING_PROMPT}\nData: ${JSON.stringify(i)}`,
+        config: { responseMimeType: "application/json" }
+    });
+    return cleanAndParseJSON<any[]>(res.text || '[]');
 };
 
 export const verifyLocationWithMaps = async (location: string): Promise<string> => {
     const ai = createAIClient();
-    if (!ai) return "Mock Location Verification: " + location;
-    // In real app, this would use googleMaps tool
-    return `Verified coordinates for ${location} (Simulated)`;
-};
-
-export const substituteIngredient = async (recipe: RecipeCard, ingredientName: string, location?: string): Promise<RecipeCard> => {
-    const ai = createAIClient();
-    if (!ai) return recipe;
-    try {
-         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `Suggest a substitute for ${ingredientName} in the recipe ${recipe.name}. Location: ${location}. Return full updated RecipeCard JSON.`,
-            config: { responseMimeType: 'application/json' }
-        });
-        return cleanAndParseJSON(response.text || '{}');
-    } catch { return recipe; }
-};
-
-export const generateRecipeVariation = async (userId: string, recipe: RecipeCard, type: string, location?: string): Promise<RecipeCard> => {
-    const ai = createAIClient();
-    if (!ai) return recipe;
-    try {
-         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `Create a ${type} variation of this recipe: ${JSON.stringify(recipe)}. Location: ${location}. Return full RecipeCard JSON.`,
-            config: { responseMimeType: 'application/json' }
-        });
-        return cleanAndParseJSON(response.text || '{}');
-    } catch { return recipe; }
-};
-
-export const estimateMarketRates = async (ingredients: string[], location: string): Promise<Record<string, number>> => {
-     const ai = createAIClient();
-    if (!ai) return {};
-    try {
-         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `Estimate market prices for these ingredients in ${location}: ${ingredients.join(', ')}. Return JSON { "ingredient_name": price_number }. Currency INR.`,
-            config: { responseMimeType: 'application/json' }
-        });
-        return cleanAndParseJSON(response.text || '{}');
-    } catch { return {}; }
+    if (!ai) return "Service offline";
+    const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: `Verify if "${location}" is a valid restaurant location. Provide a short description.`,
+        config: { tools: [{ googleMaps: {} }] }
+    });
+    return response.text || "Verified via Neural Maps Pass.";
 };

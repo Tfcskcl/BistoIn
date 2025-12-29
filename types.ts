@@ -1,3 +1,90 @@
+export interface HygieneViolation {
+    type: 'uncovered_food' | 'floor_hygiene' | 'gas_safety' | 'improper_storage' | 'spill';
+    severity: 'low' | 'medium' | 'high';
+    description: string;
+    location: string;
+    action_required: string;
+}
+
+export interface HygieneAudit {
+    overall_hygiene_score: number;
+    violations: HygieneViolation[];
+    gas_hygiene_status: 'clean' | 'greasy' | 'unsafe';
+    floor_status: 'clear' | 'debris' | 'slippery';
+    storage_compliance: number;
+}
+
+export interface CashMovementSummary {
+    total_received: number;
+    total_withdrawals: number;
+    drawer_discrepancies: number;
+    transaction_count: number;
+    drawer_open_frequency_score: number;
+    withdrawal_logs: { timestamp: string; amount: number; purpose: string; authorized: boolean }[];
+    receipt_logs: { timestamp: string; detected_amount: number; items_count: number; drawer_synced: boolean }[];
+    expense_ratio: number;
+    integrity_notes?: string;
+}
+
+export interface OperationalMetrics {
+    order_volume: number;
+    avg_prep_time_seconds: number;
+    labor_cost_pct: number;
+    wastage_rate: number;
+}
+
+export interface CCTVAnalysisResult {
+    detected_area: FacilityArea;
+    events: CCTVEvent[];
+    workflow_correlations: WorkflowCorrelation[];
+    inventory_impact: InventoryImpact[];
+    bottlenecks: Bottleneck[];
+    sop_deviations: SOPDeviation[];
+    customer_interactions?: CustomerInteraction[];
+    cash_movement?: CashMovementSummary;
+    hygiene_audit?: HygieneAudit;
+    positive_highlights?: string[];
+    audit_context?: {
+        recipe_name?: string;
+        sop_title?: string;
+    };
+    staff_movement_summary?: StaffMovementSummary;
+    performance_scores: {
+        kitchen_efficiency: number;
+        inventory_health: number;
+        congestion_score: number;
+        customer_sentiment_score?: number;
+        financial_integrity_score?: number;
+        hygiene_safety_score?: number;
+    };
+    operational_metrics?: OperationalMetrics;
+    recommendations: Recommendation[];
+    summary_report: string;
+    processing_time_ms: number;
+    model_version: string;
+    warnings: string[];
+    heatmap?: Record<string, number>; 
+    dwell_times?: Record<string, number>;
+}
+
+export interface BehavioralPattern {
+    pattern_id: 'PATTERN_1' | 'PATTERN_3' | 'PATTERN_5' | 'PATTERN_7' | 'PATTERN_8';
+    name: string;
+    detected: boolean;
+    explanation: string;
+    severity: 'low' | 'medium' | 'high';
+}
+
+export type FacilityArea = 'Kitchen' | 'Service Area' | 'Dining Area' | 'Storage';
+
+export interface StaffMovementSummary {
+    total_trips: number;
+    high_traffic_zones: string[];
+    avg_dwell_time_seconds: number;
+    zone_dwell_times?: Record<string, number>; 
+    unproductive_movement_pct: number;
+    patterns?: BehavioralPattern[];
+}
 
 export interface Ingredient {
   ingredient_id: string;
@@ -8,6 +95,13 @@ export interface Ingredient {
   unit?: string;
   cost_per_serving?: number;
   waste_pct?: number;
+  is_signature?: boolean; // Indicates a house-made component
+}
+
+export interface PreparationStep {
+    instruction: string;
+    imageUrl?: string;
+    isGenerating?: boolean;
 }
 
 export interface MenuItem {
@@ -17,13 +111,26 @@ export interface MenuItem {
   prep_time_min: number;
   category: 'main' | 'snack' | 'beverage' | 'dessert';
   current_price: number;
-  food_cost_pct?: number; // Calculated
-  margin_pct?: number; // Calculated
+  food_cost_pct?: number; 
+  food_cost_per_serving?: number; 
+  margin_pct?: number; 
+  is_essential?: boolean; 
+}
+
+export type MenuCategoryType = 'STAR' | 'PLOWHORSE' | 'PUZZLE' | 'DOG';
+
+export interface MenuEngineeringItem extends MenuItem {
+  popularity_score: number; 
+  profitability_score: number; 
+  contribution_margin: number;
+  sales_volume: number;
+  category_label: MenuCategoryType;
+  ai_recommendation?: string;
 }
 
 export interface RecipeCard extends MenuItem {
   yield: number;
-  preparation_steps: string[];
+  preparation_steps_data: PreparationStep[];
   equipment_needed: string[];
   portioning_guideline: string;
   allergens: string[];
@@ -32,181 +139,83 @@ export interface RecipeCard extends MenuItem {
   suggested_selling_price: number;
   tags: string[];
   human_summary?: string;
-  reasoning?: string;
-  confidence?: 'High' | 'Medium' | 'Low';
-  assignedRestaurantId?: string;
-  assignedRestaurantName?: string;
-  prep_time_minutes?: number;
-  cook_time_minutes?: number;
-  total_time_minutes?: number;
+  imageUrl?: string;
   cuisine?: string;
+  signature_components?: string[]; // List of house-made components
+  sources?: { title: string; uri: string }[];
 }
 
-export interface RecipeRequest {
+// --- Manual Data Entry Types ---
+
+export interface ManualSalesEntry {
     id: string;
-    userId: string;
-    userName: string;
-    item: MenuItem;
-    requirements: string;
-    status: 'pending' | 'completed';
-    requestDate: string;
-    completedDate?: string;
+    date: string;
+    revenue: number;
+    orderCount: number;
+    channel: 'Walk-in' | 'Online' | 'Takeaway';
 }
 
-export interface SOP {
-  sop_id: string;
-  title: string;
-  scope: string;
-  prerequisites: string;
-  materials_equipment: string[];
-  stepwise_procedure: { step_no: number; action: string; responsible_role: string; time_limit?: string }[];
-  critical_control_points: string[];
-  monitoring_checklist: string[];
-  kpis: string[];
-  quick_troubleshooting: string;
-}
-
-export interface SOPRequest {
+export interface ManualPurchaseEntry {
     id: string;
-    userId: string;
-    userName: string;
-    topic: string;
-    details?: string;
-    status: 'pending' | 'completed';
-    requestDate: string;
-    completedDate?: string;
+    date: string;
+    supplier: string;
+    amount: number;
+    category: string;
 }
 
-export interface MarketingRequest {
+export interface ManualExpenseEntry {
     id: string;
-    userId: string;
-    userName: string;
-    type: 'video' | 'image';
-    prompt: string;
-    images?: string[]; // Array of base64 strings (for video ref)
-    youtubeUrl?: string; // Reference video URL
-    aspectRatio: '16:9' | '9:16' | '1:1' | '4:3' | '3:4';
-    status: 'pending' | 'completed';
-    requestDate: string;
-    completedDate?: string;
-    outputUrl?: string; // URI for video or Base64/URL for image
+    date: string;
+    type: 'Rent' | 'Utility' | 'Marketing' | 'Maintenance' | 'Other';
+    amount: number;
+    note: string;
 }
 
-export interface KitchenWorkflowRequest {
+export interface ManualManpowerEntry {
     id: string;
-    userId: string;
-    userName: string;
-    title: string;
-    description: string;
-    mediaFiles: { name: string; type: 'image' | 'video'; size: string }[];
-    status: 'pending' | 'in_review' | 'approved' | 'rejected';
-    adminResponse?: string; // The generated workflow markdown
-    requestDate: string;
-    completedDate?: string;
+    date: string;
+    staffCount: number;
+    totalSalaries: number;
+    overtimeHours: number;
 }
 
-export interface MenuStructure {
-    title: string;
-    tagline?: string;
-    currency: string;
-    sections: {
-        title: string;
-        description?: string;
-        items: {
-            name: string;
-            description: string;
-            price: string;
-            tags: string[]; // e.g., 'Spicy', 'Vegan'
-            pairing?: string;
-        }[];
-    }[];
-    footer_note?: string;
+export interface IntegrationConfig {
+    storeId: string;
+    apiKey: string;
+    apiSecret: string;
+    webhookUrl?: string;
 }
 
-export interface MenuGenerationRequest {
-    id: string;
-    userId: string;
-    userName: string;
-    restaurantName: string;
-    cuisineType: string;
-    targetAudience: string;
-    budgetRange: string;
-    mustIncludeItems: string;
-    dietaryRestrictions: string[];
-    season?: string; // New
-    pricingStrategy?: string; // New
-    themeStyle?: string; // New
-    numberOfItems?: number;
-    requestDate: string;
-    generatedMenu?: string; // JSON string of MenuStructure
-}
-
-export interface RoadmapPhase {
-    phase_name: string;
-    duration: string;
-    steps: string[];
-    milestone: string;
-}
-
-export interface StrategyReport {
-  summary: string[];
-  causes: string[];
-  action_plan: { initiative: string; impact_estimate: string; cost_estimate: string; priority: 'High' | 'Medium' | 'Low' }[];
-  seasonal_menu_suggestions: { type: 'add' | 'remove'; item: string; reason: string }[];
-  roadmap: RoadmapPhase[];
-}
-
-export interface ImplementationGuide {
-    objective: string;
-    phases: {
-        phase_name: string;
-        steps: string[];
-        resources_needed: string[];
-        kpi_to_track: string;
-    }[];
-    estimated_timeline: string;
+export enum AppView {
+    DASHBOARD = 'DASHBOARD',
+    RECIPES = 'RECIPES',
+    SOP = 'SOP',
+    STRATEGY = 'STRATEGY',
+    VIDEO = 'VIDEO',
+    INTEGRATIONS = 'INTEGRATIONS',
+    BILLING = 'BILLING',
+    MENU_GENERATOR = 'MENU_GENERATOR',
+    KITCHEN_DESIGNING = 'KITCHEN_DESIGNING',
+    MENU_ENGINEERING = 'MENU_ENGINEERING',
+    INVENTORY = 'INVENTORY',
+    CCTV_ANALYTICS = 'CCTV_ANALYTICS',
+    KITCHEN_WORKFLOW = 'KITCHEN_WORKFLOW',
 }
 
 export enum UserRole {
   OWNER = 'OWNER',
   ADMIN = 'ADMIN',
   SUPER_ADMIN = 'SUPER_ADMIN',
-  ENTERPRISE = 'ENTERPRISE'
+  MANAGER = 'MANAGER',
+  CHEF = 'CHEF',
+  ENTERPRISE = 'ENTERPRISE_ADMIN'
 }
 
 export enum PlanType {
-  FREE = 'FREE', // Used for pay-as-you-go setup
+  FREE = 'FREE',
   OPS_MANAGER = 'OPS_MANAGER',
   FULL_SYSTEM = 'FULL_SYSTEM',
   ENTERPRISE = 'ENTERPRISE'
-}
-
-export interface PlanConfig {
-    name: string;
-    description?: string;
-    price: number;
-    quarterlyPrice: number;
-    features: string[];
-    color: string;
-}
-
-export interface CreditTransaction {
-    id: string;
-    date: string;
-    amount: number;
-    type: 'credit' | 'debit'; // credit = added (purchase), debit = used
-    description: string;
-}
-
-export interface SocialStats {
-    platform: 'instagram' | 'facebook' | 'google_business';
-    handle: string;
-    metrics: {
-        label: string;
-        value: string;
-        trend?: number; // percentage
-    }[];
-    lastSync: string;
 }
 
 export interface User {
@@ -215,70 +224,118 @@ export interface User {
   email: string;
   role: UserRole;
   plan: PlanType;
-  // New profile fields
-  restaurantName?: string;
-  location?: string;
-  cuisineType?: string;
-  joinedDate?: string;
-  
-  // Registration extras
+  joinedDate: string;
+  restaurantName: string;
+  location: string;
+  cuisineType: string;
   gstNumber?: string;
   fssaiNumber?: string;
-  menuFile?: string;
-
-  // Usage Tracking (Replaced Credits with Quotas)
+  isTrial?: boolean;
+  setupComplete: boolean;
+  queriesUsed?: number;
+  queryLimit?: number;
+  credits: number;
   recipeQuota: number;
   sopQuota: number;
-  
-  // Setup Status
-  setupComplete?: boolean;
-  setupFeePaid?: boolean;
-  
-  // Legacy trial fields (deprecated but kept for compatibility)
-  queriesUsed?: number;
-  queryLimit?: number; 
-  isTrial?: boolean;
-  credits: number; // Keeping for legacy type safety but treating as 0
 }
 
-export enum AppView {
-  DASHBOARD = 'DASHBOARD',
-  RECIPES = 'RECIPES',
-  INVENTORY = 'INVENTORY',
-  SOP = 'SOP',
-  STRATEGY = 'STRATEGY',
-  VIDEO = 'VIDEO',
-  KITCHEN_WORKFLOW = 'KITCHEN_WORKFLOW',
-  MENU_GENERATOR = 'MENU_GENERATOR',
-  CCTV_ANALYTICS = 'CCTV_ANALYTICS',
-  INTEGRATIONS = 'INTEGRATIONS',
-  BILLING = 'BILLING'
+export interface DesignElement {
+    type: 'equipment' | 'wall' | 'zone' | 'door' | 'window';
+    equipment_type?: 'range' | 'oven' | 'sink' | 'table' | 'fridge' | 'dishwasher' | 'storage' | 'fryer';
+    label: string;
+    x: number; // percentage
+    y: number; // percentage
+    w: number; // percentage width relative to canvas
+    h: number; // percentage height relative to canvas
+    length_ft: number; // real-world dimension
+    width_ft: number; // real-world dimension
+    height_ft?: number; // real-world dimension
+    description?: string;
+    specifications?: string;
+    utility_req?: {
+        power?: string;
+        water?: boolean;
+        drain?: boolean;
+        gas?: boolean;
+    };
 }
 
-export interface AppNotification {
-  id: string;
-  title: string;
-  message: string;
-  type: 'info' | 'warning' | 'success';
-  read: boolean;
-  date: string;
-  role?: UserRole[]; // If null, visible to all
-}
-
-export interface POSChangeRequest {
+export interface KitchenDesign {
     id: string;
-    sku_id: string;
-    item_name: string;
-    old_price: number;
-    new_price: number;
-    status: 'pending' | 'approved' | 'rejected';
-    requested_by: string;
-    requested_date: string;
-    targetRestaurantId?: string;
-    targetRestaurantName?: string;
+    title: string;
+    dimensions: { length: number; width: number; unit: 'ft' | 'm' };
+    elements: DesignElement[];
+    workflow_notes: string;
+    summary: string;
 }
 
-// Inventory Types
+export interface KitchenDesignRequest {
+    id: string;
+    userId: string;
+    userName: string;
+    title: string;
+    length: number;
+    width: number;
+    cuisineType: string;
+    specialRequirements: string;
+    status: 'pending' | 'approved' | 'rejected';
+    requestDate: string;
+    completedDate?: string;
+    designData?: KitchenDesign;
+}
+
+export interface KitchenWorkflowRequest {
+    id: string;
+    userId: string;
+    userName: string;
+    title: string;
+    description: string;
+    mediaFiles: {name: string, type: 'image' | 'video', size: string}[];
+    status: 'pending' | 'approved' | 'rejected';
+    requestDate: string;
+    adminResponse?: string;
+    completedDate?: string;
+}
+
+export type CameraProvider = 'EZVIZ' | 'HIKVISION' | 'DAHUA' | 'CP_PLUS' | 'GENERIC_RTSP';
+
+export interface CameraFeed {
+    id: string;
+    name: string;
+    url: string;
+    provider: CameraProvider;
+    area: FacilityArea;
+    isActive: boolean;
+    lastSynced?: string;
+}
+
+export interface SOP {
+    sop_id: string;
+    title: string;
+    scope: string;
+    prerequisites: string;
+    materials_equipment: string[];
+    stepwise_procedure: { step_no: number; action: string; responsible_role: string; time_limit?: string }[];
+    critical_control_points: string[];
+    monitoring_checklist: string[];
+    kpis: string[];
+    quick_troubleshooting: string;
+}
+
+export interface StrategyReport {
+    summary: string[];
+    causes: string[];
+    action_plan: { initiative: string; impact_estimate: string; cost_estimate: string; priority: 'High' | 'Medium' | 'Low' }[];
+    seasonal_menu_suggestions: { type: 'add' | 'remove'; item: string; reason: string }[];
+    roadmap: { phase_name: string; duration: string; steps: string[]; milestone: string }[];
+}
+
+export interface UnifiedSchema {
+    summary: string;
+    health_score: number;
+    recommendations: string[];
+}
+
 export interface InventoryItem {
     id: string;
     name: string;
@@ -286,184 +343,166 @@ export interface InventoryItem {
     currentStock: number;
     unit: string;
     costPerUnit: number;
-    parLevel: number; // Minimum stock before reorder
+    parLevel: number;
     supplier: string;
     lastUpdated: string;
+    imageUrl?: string;
 }
 
 export interface PurchaseOrder {
     id: string;
     supplier: string;
-    items: { name: string; qty: number; unit: string; estimatedCost: number }[];
+    items: { name: string; qty: number; unit: string }[];
     totalEstimatedCost: number;
     status: 'draft' | 'sent';
     generatedDate: string;
     emailBody?: string;
 }
 
-// --- CCTV Analytics Types ---
-
-export interface CCTVEvent {
-    event_id: string;
-    type: 'enter_zone' | 'exit_zone' | 'dwell' | 'trip' | 'action';
-    person_id: string;
-    mapped_step_id: string | null;
-    zone_id: string;
-    start_time: string;
-    end_time?: string;
-    duration_seconds?: number;
-    inventory_interaction?: {
-        item_id: string;
-        qty: number;
-        interaction_type: 'pickup' | 'return' | 'drop' | null;
-    };
-    confidence: number;
-    notes?: string;
-    clip_url?: string; // Added for playback
-}
-
-export interface WorkflowCorrelation {
-    order_id: string;
-    recipe_id: string;
-    step_id: string;
-    expected_zone: string;
-    actual_events: string[];
-    on_time: boolean;
-    sequence_ok: boolean;
-    deviation: boolean;
-    deviation_reason: string | null;
-    confidence: number;
-}
-
-export interface InventoryImpact {
-    item_id: string;
-    observed_shortage: boolean;
-    shortage_qty: number;
-    related_events: string[];
-    root_cause: string;
-    recommendation: string;
-    confidence: number;
-}
-
-export interface Bottleneck {
-    zone_id: string;
-    severity: 'low' | 'medium' | 'high';
-    evidence: string[];
-    root_cause: string;
-    recommendation: string;
-    confidence: number;
-}
-
-export interface SOPDeviation {
-    step_id: string;
-    person_id: string;
-    deviation_type: string;
-    confidence: number;
-    explanation: string;
-}
-
-export interface Recommendation {
-    type: 'staffing' | 'layout' | 'inventory' | 'training' | 'process';
-    priority: 'high' | 'medium' | 'low';
+export interface Task {
+    id: string;
     text: string;
-    expected_impact: string;
-    confidence: number;
+    completed: boolean;
+    priority: 'low' | 'medium' | 'high';
 }
 
-// API Output Schema (The full response)
-export interface CCTVAnalysisResult {
-    events: CCTVEvent[];
-    workflow_correlations: WorkflowCorrelation[];
-    inventory_impact: InventoryImpact[];
-    bottlenecks: Bottleneck[];
-    sop_deviations: SOPDeviation[];
-    performance_scores: {
-        kitchen_efficiency: number;
-        inventory_health: number;
-        congestion_score: number;
-    };
-    recommendations: Recommendation[];
-    summary_report: string;
-    processing_time_ms: number;
-    model_version: string;
-    warnings: string[];
-    
-    // Legacy fields mapped for backward compatibility if needed
-    heatmap?: Record<string, number>; 
-    dwell_times?: Record<string, number>;
+export interface AppNotification {
+    id: string;
+    title: string;
+    message: string;
+    type: 'info' | 'warning' | 'success';
+    read: boolean;
+    date: string;
 }
 
-// Unified AI Schema
-export interface UnifiedSchema {
-    workflow_analysis: any;
-    sop_compliance: { rate: number; violations: any[] };
-    inventory_verification: any;
-    wastage_root_causes: string[];
-    recipe_costing_impact: any;
-    profitability_insights: any;
-    strategy_plan_7_days: any;
-    marketing_assets: any;
-    summary: string;
+export interface PlanConfig {
+    name: string;
+    price: number;
+    description?: string;
+    features: string[];
+    color: string;
 }
 
-// Onboarding State
 export interface OnboardingState {
     phaseIdx: number;
-    data: Record<string, any>;
+    data: any;
     completed: boolean;
 }
 
-// Razorpay Types
+export interface MarketingRequest {
+    id: string;
+    userId: string;
+    userName: string;
+    type: 'video' | 'image';
+    prompt: string;
+    aspectRatio: string;
+    status: 'pending' | 'completed';
+    requestDate: string;
+    outputUrl?: string;
+}
+
+export interface MenuGenerationRequest {
+    id: string;
+    userId: string;
+    userName: string;
+    restaurantName: string;
+    cuisineType: string;
+    requestDate: string;
+    generatedMenu?: any;
+    themeStyle?: string;
+    targetAudience?: string;
+    budgetRange?: string;
+    mustIncludeItems?: string;
+    dietaryRestrictions?: string[];
+    season?: string;
+    pricingStrategy?: string;
+}
+
+export interface MenuStructure {
+    title: string;
+    tagline: string;
+    sections: { title: string; items: { name: string; description: string; price: number; tags?: string[]; pairing?: string }[] }[];
+    currency?: string;
+    footer_note?: string;
+}
+
+export interface POSChangeRequest {
+    id: string;
+    itemId: string;
+    itemName: string;
+    newPrice: number;
+    reason: string;
+    status: 'pending' | 'approved' | 'rejected';
+}
+
+export interface SocialStats {
+    platform: string;
+    followers: number;
+    engagement: string;
+}
+
+export interface VisitorSession {
+    id: string;
+    location: string;
+}
+
+export interface RazorpayResponse {
+    razorpay_payment_id: string;
+    razorpay_order_id: string;
+    razorpay_signature: string;
+}
+
 export interface RazorpayOptions {
     key: string;
     amount: number;
     currency: string;
     name: string;
     description: string;
-    image?: string;
-    order_id?: string; // Optional for client-side demo
+    image: string;
     handler: (response: RazorpayResponse) => void;
-    prefill?: {
-        name?: string;
-        email?: string;
-        contact?: string;
+    prefill: {
+        name: string;
+        email: string;
+        contact: string;
     };
-    notes?: Record<string, string>;
-    theme?: {
-        color?: string;
+    notes: any;
+    theme: {
+        color: string;
     };
 }
 
-export interface RazorpayResponse {
-    razorpay_payment_id: string;
-    razorpay_order_id?: string;
-    razorpay_signature?: string;
-}
+export interface WorkflowCorrelation { event_id: string; }
+export interface InventoryImpact { ingredient: string; }
+export interface Bottleneck { area: string; }
+export interface SOPDeviation { deviation: string; }
+export interface CustomerInteraction { sentiment: string; }
+export interface Recommendation { action: string; }
+export interface CCTVEvent { id: string; }
 
-declare global {
-    interface Window {
-        Razorpay: new (options: RazorpayOptions) => { open: () => void };
-    }
-}
-
-// Analytics Types
-export interface VisitorSession {
-    sessionId: string;
-    userId?: string;
-    userName?: string; // 'Guest' if not logged in
-    location: string;
-    device: string;
-    entryTime: string;
-    lastActive: string;
-    pagesVisited: string[];
-    isOnline: boolean;
-    hasAbandonedCheckout: boolean;
-}
-
-export interface AnalyticsEvent {
+export interface SOPRequest {
     id: string;
-    sessionId: string;
-    type: 'PAGE_VIEW' | 'CLICK' | 'CHECKOUT_START' | 'PURCHASE';
-    detail: string;
-    timestamp: string;
+    userId: string;
+    userName: string;
+    topic: string;
+    status: 'pending' | 'completed';
+    requestDate: string;
+}
+
+export interface RecipeRequest {
+    id: string;
+    userId: string;
+    userName: string;
+    dishName: string;
+    cuisine?: string;
+    status: 'pending' | 'completed';
+    requestDate: string;
+}
+
+export interface CreditTransaction {
+    id: string;
+    userId: string;
+    amount: number;
+    type: 'purchase' | 'usage';
+    description: string;
+    date: string;
 }

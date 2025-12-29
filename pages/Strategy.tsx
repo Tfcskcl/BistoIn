@@ -1,48 +1,54 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { generateStrategy } from '../services/geminiService';
 import { StrategyReport, User, PlanType } from '../types';
 import { Send, Loader2, User as UserIcon, Briefcase, TrendingUp, Sparkles, AlertTriangle, Wallet, Users, Star, CheckCircle2, Phone, Award, Video, Building2 } from 'lucide-react';
 import { storageService } from '../services/storageService';
 import { paymentService } from '../services/paymentService';
 
-interface StrategyProps { user: User; onUserUpdate?: (user: User) => void; }
+interface StrategyProps { 
+    user: User; 
+    onUserUpdate?: (user: User) => void; 
+    initialQuery?: string | null;
+    onQueryConsumed?: () => void;
+}
 
 const QUICK_PROMPTS = [
     { title: "Boost Customer Footfall", query: "Create a detailed marketing plan to increase customer footfall by 20% in the next 30 days. Focus on social media, local partnerships, and weekday promotions.", icon: Users, color: "text-blue-600 bg-blue-100" },
-    { title: "Reduce Food Cost", query: "Analyze my menu and suggest ways to reduce food cost by 5% without lowering quality. Focus on waste reduction and ingredient substitution.", icon: TrendingUp, color: "text-emerald-600 bg-emerald-100" }, // Icon changed for demo
+    { title: "Reduce Food Cost", query: "Analyze my menu and suggest ways to reduce food cost by 5% without lowering quality. Focus on waste reduction and ingredient substitution.", icon: TrendingUp, color: "text-emerald-600 bg-emerald-100" },
     { title: "Staff Retention", query: "Suggest an employee incentive program to reduce turnover and improve service quality.", icon: Users, color: "text-purple-600 bg-purple-100" },
     { title: "Menu Engineering", query: "Identify high-margin items and suggest how to promote them using menu psychology.", icon: Star, color: "text-amber-600 bg-amber-100" }
 ];
 
-export const Strategy: React.FC<StrategyProps> = ({ user }) => {
+export const Strategy: React.FC<StrategyProps> = ({ user, initialQuery, onQueryConsumed }) => {
   const [query, setQuery] = useState('');
   const [report, setReport] = useState<StrategyReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Payment State
   const [processingService, setProcessingService] = useState<'call' | 'onsite' | null>(null);
   
+  useEffect(() => {
+      if (initialQuery && !report && !loading) {
+          handleSend(initialQuery);
+          if (onQueryConsumed) onQueryConsumed();
+      }
+  }, [initialQuery]);
+
   const handleSend = async (textOverride?: string) => {
     const textToSend = textOverride || query;
     if (!textToSend) return;
-    
-    // NOTE: Removed Credit Check/Deduction - Strategy is now free/included
     
     if (textOverride) setQuery(textOverride);
     setLoading(true);
     setReport(null);
     setError(null);
     
-    // Gather Context
     const salesData = storageService.getSalesData(user.id);
     const totalRev = salesData.reduce((acc: number, curr: any) => acc + curr.revenue, 0);
     const avgRev = salesData.length ? (totalRev / salesData.length).toFixed(0) : '0';
     const salesSummary = `Average Daily Revenue: ₹${avgRev}. Total Orders (last 30 days): ${salesData.reduce((acc: any, c: any) => acc + c.items_sold, 0)}.`;
 
     try {
-      // Pass full user object and sales context for deep analysis
       const data = await generateStrategy(user, textToSend, salesSummary);
       setReport(data);
     } catch (e: any) {
@@ -58,13 +64,12 @@ export const Strategy: React.FC<StrategyProps> = ({ user }) => {
 
       await paymentService.initiatePayment(
           user,
-          PlanType.FULL_SYSTEM, // Using PlanType generic for service payment
+          PlanType.FULL_SYSTEM,
           amount,
           (paymentId) => {
               const serviceName = type === 'call' ? "Expert Consultation Call" : "On-site Implementation";
               alert(`✅ Booking Confirmed! \n\nService: ${serviceName}\nTransaction ID: ${paymentId}\n\nA Bistro Specialist will contact you at ${user.email} within 2 hours.`);
               
-              // Record transaction
               storageService.addInvoice(user.id, {
                   id: paymentId,
                   date: new Date().toISOString(),
@@ -85,7 +90,6 @@ export const Strategy: React.FC<StrategyProps> = ({ user }) => {
 
   return (
     <div className="h-[calc(100vh-6rem)] flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden relative transition-colors">
-      {/* Header */}
       <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between z-20">
         <div className="flex items-center gap-4">
             <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-lg"><UserIcon size={20} /></div>
@@ -136,27 +140,25 @@ export const Strategy: React.FC<StrategyProps> = ({ user }) => {
 
         {report && (
           <div className="max-w-5xl mx-auto space-y-8 pb-20 animate-fade-in">
-            {/* Executive Summary */}
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                     <Sparkles className="text-emerald-500" size={20}/> Executive Analysis
                 </h3>
                 <ul className="space-y-3">
-                    {report.summary.map((s,i) => (
+                    {Array.isArray(report.summary) ? report.summary.map((s,i) => (
                         <li key={i} className="flex gap-3 text-slate-700 dark:text-slate-300 leading-relaxed">
                             <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mt-2 shrink-0"></span>
                             {s}
                         </li>
-                    ))}
+                    )) : <li>No summary available.</li>}
                 </ul>
             </div>
 
-            {/* Action Plan Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-800">
                     <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Strategic Initiatives</h3>
                     <div className="space-y-4">
-                        {report.action_plan.map((action, i) => (
+                        {Array.isArray(report.action_plan) ? report.action_plan.map((action, i) => (
                             <div key={i} className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border-l-4 border-l-emerald-500">
                                 <div className="flex justify-between items-start mb-1">
                                     <h4 className="font-bold text-slate-800 dark:text-white text-sm">{action.initiative}</h4>
@@ -169,38 +171,37 @@ export const Strategy: React.FC<StrategyProps> = ({ user }) => {
                                     <span>Cost: <strong className="text-slate-700 dark:text-slate-300">{action.cost_estimate}</strong></span>
                                 </div>
                             </div>
-                        ))}
+                        )) : <p className="text-slate-400 italic">No actions defined.</p>}
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-800">
                     <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Seasonal Menu Engineering</h3>
                     <div className="space-y-3">
-                        {report.seasonal_menu_suggestions.map((item, i) => (
+                        {Array.isArray(report.seasonal_menu_suggestions) ? report.seasonal_menu_suggestions.map((item, i) => (
                             <div key={i} className="flex items-center justify-between p-3 border-b border-slate-100 dark:border-slate-700 last:border-0">
                                 <div>
                                     <p className="font-bold text-slate-800 dark:text-white text-sm">{item.item}</p>
                                     <p className="text-xs text-slate-500">{item.reason}</p>
                                 </div>
                                 <span className={`text-xs font-bold px-2 py-1 rounded ${item.type === 'add' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                                    {item.type.toUpperCase()}
+                                    {String(item.type).toUpperCase()}
                                 </span>
                             </div>
-                        ))}
+                        )) : <p className="text-slate-400 italic">No suggestions available.</p>}
                     </div>
                 </div>
             </div>
 
-            {/* Roadmap */}
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-800">
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Implementation Roadmap</h3>
                 <div className="relative border-l-2 border-slate-200 dark:border-slate-700 ml-4 space-y-8">
-                    {report.roadmap.map((phase, i) => (
+                    {Array.isArray(report.roadmap) ? report.roadmap.map((phase, i) => (
                         <div key={i} className="relative pl-8">
                             <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-emerald-500 border-4 border-white dark:border-slate-800"></div>
                             <h4 className="font-bold text-slate-800 dark:text-white">{phase.phase_name} <span className="text-xs font-normal text-slate-500 ml-2">({phase.duration})</span></h4>
                             <ul className="mt-2 space-y-1">
-                                {phase.steps.map((step, j) => (
+                                {Array.isArray(phase.steps) && phase.steps.map((step, j) => (
                                     <li key={j} className="text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2">
                                         <CheckCircle2 size={12} className="text-emerald-500"/> {step}
                                     </li>
@@ -210,18 +211,16 @@ export const Strategy: React.FC<StrategyProps> = ({ user }) => {
                                 🎯 Milestone: {phase.milestone}
                             </div>
                         </div>
-                    ))}
+                    )) : <p className="text-slate-400 italic">No roadmap generated.</p>}
                 </div>
             </div>
 
-            {/* Expert Implementation Services */}
             <div className="space-y-4">
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                     <Award className="text-yellow-500" /> Bistro Expert Connect
                 </h3>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Consultation Option */}
                     <div className="bg-gradient-to-br from-indigo-900 to-indigo-800 rounded-xl p-6 text-white shadow-lg flex flex-col justify-between relative overflow-hidden">
                         <div className="relative z-10">
                             <div className="flex justify-between items-start mb-4">
@@ -256,7 +255,6 @@ export const Strategy: React.FC<StrategyProps> = ({ user }) => {
                         </div>
                     </div>
 
-                    {/* On-Site Option */}
                     <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl p-6 text-white shadow-lg flex flex-col justify-between relative overflow-hidden">
                         <div className="relative z-10">
                             <div className="flex justify-between items-start mb-4">
@@ -292,12 +290,10 @@ export const Strategy: React.FC<StrategyProps> = ({ user }) => {
                     </div>
                 </div>
             </div>
-
           </div>
         )}
       </div>
       
-      {/* Input Area */}
       <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <div className="max-w-4xl mx-auto relative">
               <input 

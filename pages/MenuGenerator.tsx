@@ -1,20 +1,17 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { User, MenuGenerationRequest, UserRole, MenuStructure } from '../types';
 import { storageService } from '../services/storageService';
 import { generateMenu, cleanAndParseJSON, hasValidApiKey } from '../services/geminiService';
-import { Sparkles, Loader2, BookOpen, Download, LayoutTemplate, Palette, DollarSign, CloudSun, AlertCircle } from 'lucide-react';
+import { Sparkles, Loader2, BookOpen, Download, LayoutTemplate, Palette, DollarSign, CloudSun, AlertCircle, Trash2 } from 'lucide-react';
 
 interface MenuGeneratorProps {
     user: User;
     onUserUpdate?: (user: User) => void;
 }
 
-// Sub-component: Menu Designer Renderer
 const MenuDesigner: React.FC<{ data: MenuStructure, theme: string }> = ({ data, theme }) => {
     const baseStyles = "w-full min-h-[800px] p-12 bg-white text-slate-900 shadow-2xl relative overflow-hidden print:shadow-none print:w-full";
     
-    // Theme configurations
     const themes: Record<string, any> = {
         'Modern': {
             wrapper: `${baseStyles} font-sans`,
@@ -59,31 +56,31 @@ const MenuDesigner: React.FC<{ data: MenuStructure, theme: string }> = ({ data, 
     return (
         <div id="menu-print-area" className={styles.wrapper}>
             <div className="text-center">
-                <h1 className={styles.header}>{data.title}</h1>
+                <h1 className={styles.header}>{data.title || "Restaurant Menu"}</h1>
                 {data.tagline && <p className={styles.tagline}>{data.tagline}</p>}
             </div>
 
             <div className={`grid ${theme === 'Classic' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} gap-x-12 gap-y-8`}>
-                {data.sections.map((section, idx) => (
+                {Array.isArray(data.sections) ? data.sections.map((section, idx) => (
                     <div key={idx} className="break-inside-avoid">
                         <h2 className={styles.sectionTitle}>{section.title}</h2>
-                        {section.items.map((item, i) => (
+                        {Array.isArray(section.items) ? section.items.map((item, i) => (
                             <div key={i} className={styles.itemWrapper}>
                                 <div className={styles.itemHeader}>
                                     <h3 className={styles.itemName}>
                                         {item.name}
-                                        {item.tags?.map(t => <span key={t} className={styles.tag}>{t}</span>)}
+                                        {Array.isArray(item.tags) && item.tags.map(t => <span key={t} className={styles.tag}>{t}</span>)}
                                     </h3>
-                                    <span className={styles.itemPrice}>{data.currency}{item.price}</span>
+                                    <span className={styles.itemPrice}>{data.currency || "₹"}{item.price}</span>
                                 </div>
                                 <p className={styles.itemDesc}>{item.description}</p>
                                 {item.pairing && theme !== 'Classic' && (
                                     <p className="text-xs text-purple-500 mt-1 italic">🍷 Pair with: {item.pairing}</p>
                                 )}
                             </div>
-                        ))}
+                        )) : <p className="text-slate-400 italic text-sm">No items in section.</p>}
                     </div>
-                ))}
+                )) : <p className="text-slate-400 text-center py-20 italic">No menu sections defined.</p>}
             </div>
             
             {data.footer_note && (
@@ -99,7 +96,6 @@ export const MenuGenerator: React.FC<MenuGeneratorProps> = ({ user, onUserUpdate
     const isAdmin = [UserRole.ADMIN, UserRole.SUPER_ADMIN].includes(user.role);
     const [view, setView] = useState<'create' | 'list'>('create');
     
-    // Form Data
     const [formData, setFormData] = useState({ 
         restaurantName: user.restaurantName || '', 
         cuisineType: user.cuisineType || '', 
@@ -119,16 +115,20 @@ export const MenuGenerator: React.FC<MenuGeneratorProps> = ({ user, onUserUpdate
     const [isOffline, setIsOffline] = useState(false);
 
     useEffect(() => {
-        const all = storageService.getAllMenuGenerationRequests();
-        setHistory(isAdmin ? all : all.filter(r => r.userId === user.id));
+        refreshHistory();
         setIsOffline(!hasValidApiKey());
     }, [user.id, isAdmin]);
+
+    const refreshHistory = () => {
+        const all = storageService.getAllMenuGenerationRequests();
+        setHistory(isAdmin ? all : all.filter(r => r.userId === user.id).sort((a,b) => new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime()));
+    };
 
     const handleGenerate = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
-        if (!formData.restaurantName) { setError("Name required"); return; }
-        // Note: Removed Credit Check - Menu Gen is included
+        if (!formData.restaurantName) { setError("Restaurant name required"); return; }
+        if (!hasValidApiKey()) { setError("AI Service requires a valid API Key. Check credentials."); return; }
 
         setLoading(true);
         setGeneratedResult(null);
@@ -143,24 +143,20 @@ export const MenuGenerator: React.FC<MenuGeneratorProps> = ({ user, onUserUpdate
 
         try {
             const responseText = await generateMenu(request);
+            const parsedMenu = cleanAndParseJSON<MenuStructure>(responseText);
             
-            // Try to parse the response
-            try {
-                const parsedMenu = cleanAndParseJSON<MenuStructure>(responseText);
-                setGeneratedResult(parsedMenu);
-                // Check if result was mock
-                if (parsedMenu.tagline === "Generated Offline Mode") {
-                    setIsOffline(true);
-                }
-            } catch (jsonErr) {
-                // If JSON fails, it might be raw mock text
-                throw new Error("Failed to parse menu layout. API Key might be invalid.");
+            if (!parsedMenu || !parsedMenu.sections) {
+                throw new Error("Received invalid structure from AI node.");
             }
 
+            setGeneratedResult(parsedMenu);
+            
+            // Save to history
             const finalRequest = { ...request, generatedMenu: responseText };
             storageService.saveMenuGenerationRequest(finalRequest);
+            refreshHistory();
         } catch (err: any) {
-            setError(err.message);
+            setError(err.message || "Synthesis failed. The neural node is likely overloaded.");
         } finally {
             setLoading(false);
         }
@@ -188,7 +184,6 @@ export const MenuGenerator: React.FC<MenuGeneratorProps> = ({ user, onUserUpdate
                 `);
                 win.document.close();
                 win.focus();
-                // Allow styles to load
                 setTimeout(() => {
                     win.print();
                     win.close();
@@ -208,7 +203,6 @@ export const MenuGenerator: React.FC<MenuGeneratorProps> = ({ user, onUserUpdate
 
             {view === 'create' && (
                 <div className="flex flex-col lg:flex-row gap-6 h-full overflow-hidden">
-                    {/* Config Panel */}
                     <div className="w-full lg:w-1/3 bg-white dark:bg-slate-900 rounded-xl p-6 overflow-y-auto custom-scrollbar border border-slate-200 dark:border-slate-800">
                         <h2 className="text-xl font-bold mb-6 dark:text-white flex items-center gap-2">
                             <BookOpen className="text-purple-500"/> Menu Configuration
@@ -282,16 +276,15 @@ export const MenuGenerator: React.FC<MenuGeneratorProps> = ({ user, onUserUpdate
                                 </div>
                             </div>
 
-                            {error && <div className="text-red-500 text-xs bg-red-50 p-2 rounded">{error}</div>}
+                            {error && <div className="text-red-500 text-xs bg-red-50 p-2 rounded border border-red-100">{error}</div>}
                             
-                            <button type="submit" disabled={loading} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex justify-center gap-2 transition-colors">
+                            <button type="submit" disabled={loading} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex justify-center gap-2 transition-colors disabled:opacity-50">
                                 {loading ? <Loader2 className="animate-spin" /> : <Sparkles />} Generate Designer Menu
                             </button>
                         </form>
                     </div>
 
-                    {/* Preview Panel */}
-                    <div className="flex-1 bg-slate-100 dark:bg-black rounded-xl p-4 sm:p-8 overflow-y-auto flex flex-col items-center justify-start border border-slate-200 dark:border-slate-800">
+                    <div className="flex-1 bg-slate-100 dark:bg-black rounded-xl p-4 sm:p-8 overflow-y-auto flex flex-col items-center justify-start border border-slate-200 dark:border-slate-800 custom-scrollbar">
                         {generatedResult ? (
                             <>
                                 <div className="w-full flex justify-end gap-2 mb-4">
@@ -318,23 +311,30 @@ export const MenuGenerator: React.FC<MenuGeneratorProps> = ({ user, onUserUpdate
             )}
 
             {view === 'list' && (
-                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 overflow-y-auto">
-                    <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Generated Menus</h2>
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 overflow-y-auto custom-scrollbar flex-1">
+                    <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Generated Menus History</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {history.map(item => (
-                            <div key={item.id} className="p-4 border rounded-xl hover:border-emerald-500 transition-colors cursor-pointer" onClick={() => {
-                                try {
-                                    const parsed = cleanAndParseJSON<MenuStructure>(item.generatedMenu);
-                                    setGeneratedResult(parsed);
-                                    setFormData(prev => ({...prev, restaurantName: item.restaurantName, cuisineType: item.cuisineType, themeStyle: item.themeStyle || 'Modern'}));
-                                    setView('create');
-                                } catch(e) {}
-                            }}>
-                                <h3 className="font-bold text-slate-800 dark:text-white">{item.restaurantName}</h3>
-                                <p className="text-xs text-slate-500">{item.cuisineType}</p>
-                                <p className="text-xs text-slate-400 mt-2">{new Date(item.requestDate).toLocaleDateString()}</p>
+                            <div key={item.id} className="group p-4 border border-slate-200 dark:border-slate-800 rounded-xl hover:border-emerald-500 transition-colors bg-white dark:bg-slate-800/50 relative">
+                                <div className="cursor-pointer" onClick={() => {
+                                    try {
+                                        const parsed = cleanAndParseJSON<MenuStructure>(item.generatedMenu);
+                                        setGeneratedResult(parsed);
+                                        setFormData(prev => ({...prev, restaurantName: item.restaurantName, cuisineType: item.cuisineType, themeStyle: item.themeStyle || 'Modern'}));
+                                        setView('create');
+                                    } catch(e) {}
+                                }}>
+                                    <h3 className="font-bold text-slate-800 dark:text-white">{item.restaurantName}</h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">{item.cuisineType}</p>
+                                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">{new Date(item.requestDate).toLocaleString()}</p>
+                                </div>
                             </div>
                         ))}
+                        {history.length === 0 && (
+                            <div className="col-span-full text-center py-20 text-slate-400 italic">
+                                <p>No historical menu configurations in vault.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

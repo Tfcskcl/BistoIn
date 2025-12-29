@@ -19,7 +19,8 @@ export const Header: React.FC<HeaderProps> = ({ theme, toggleTheme, currentView,
 
   useEffect(() => {
     if (user) {
-        const list = storageService.getNotifications(user.id, user.role);
+        // Fix: Call getNotifications with 1 argument
+        const list = storageService.getNotifications(user.id);
         setNotifications(list);
     }
   }, [user]); // user is now a stable prop from App state
@@ -29,14 +30,17 @@ export const Header: React.FC<HeaderProps> = ({ theme, toggleTheme, currentView,
   const handleMarkRead = (id: string) => {
       if (user) {
           storageService.markAsRead(user.id, id);
-          setNotifications(storageService.getNotifications(user.id, user.role));
+          // Fix: Call getNotifications with 1 argument
+          setNotifications(storageService.getNotifications(user.id));
       }
   };
 
   const handleMarkAllRead = () => {
       if (user) {
-          storageService.markAllRead(user.id, user.role);
-          setNotifications(storageService.getNotifications(user.id, user.role));
+          // Fix: Call markAllRead with 1 argument
+          storageService.markAllRead(user.id);
+          // Fix: Call getNotifications with 1 argument
+          setNotifications(storageService.getNotifications(user.id));
       }
   };
 

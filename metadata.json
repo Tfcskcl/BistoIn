@@ -1,5 +1,7 @@
 {
-  "name": "CPBistrointelligence",
-  "description": "AI-powered F&B operations assistant for recipe costing, SOP generation, and business strategy.",
-  "requestFramePermissions": []
+  "name": "BistroConnect Neural OS",
+  "description": "Multi-modal AI operating system for high-fidelity restaurant operations.",
+  "requestFramePermissions": [
+    "camera"
+  ]
 }

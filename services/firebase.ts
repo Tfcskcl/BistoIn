@@ -1,10 +1,8 @@
-
 import { initializeApp } from "firebase/app";
 import { getAuth, Auth } from "firebase/auth";
 import { getFirestore, Firestore } from "firebase/firestore";
 
-// TODO: Replace with your actual Firebase project configuration
-// You can get this from the Firebase Console -> Project Settings -> General
+// NOTE: These are placeholders. In a real environment, these would be populated via env variables.
 const firebaseConfig = {
   apiKey: "YOUR_API_KEY_HERE",
   authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
@@ -14,8 +12,11 @@ const firebaseConfig = {
   appId: "YOUR_APP_ID"
 };
 
-// Check if keys are configured or still placeholders
-export const isFirebaseConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY_HERE" && !firebaseConfig.apiKey.includes("YOUR_");
+// Robust check for active configuration
+export const isFirebaseConfigured = 
+    firebaseConfig.apiKey !== "YOUR_API_KEY_HERE" && 
+    !firebaseConfig.apiKey.includes("YOUR_") &&
+    firebaseConfig.apiKey.length > 10;
 
 let app;
 let auth: Auth | undefined;
@@ -29,10 +30,15 @@ if (isFirebaseConfigured) {
   } catch (e) {
     console.error("Firebase initialization error:", e);
   }
-} else {
-    // Suppress warning, show info instead for cleaner console
-    console.info("BistroIntelligence: Running in Demo Mode (Mock Authentication Active)");
 }
+
+export const getFirebaseStatus = () => {
+    return {
+        configured: isFirebaseConfigured,
+        authReady: !!auth,
+        dbReady: !!db
+    };
+};
 
 export { app, auth, db };
 export default app;

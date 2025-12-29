@@ -1,6 +1,13 @@
 
 import { PlanType, RazorpayOptions, RazorpayResponse, User } from '../types';
 
+// Fix: Extend Window interface to include Razorpay
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
 // Razorpay Live Key ID
 const RAZORPAY_KEY_ID = 'rzp_live_RYndnOARtD6tmd'; 
 

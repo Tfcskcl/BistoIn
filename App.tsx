@@ -11,14 +11,15 @@ import { Login } from './pages/Login';
 import { Integrations } from './pages/Integrations';
 import { Billing } from './pages/Billing';
 import { Landing } from './pages/Landing';
-import { KitchenWorkflow } from './pages/KitchenWorkflow';
+import { KitchenDesigning } from './pages/KitchenDesigning';
 import { MenuGenerator } from './pages/MenuGenerator';
+import { MenuEngineering } from './pages/MenuEngineering';
 import { InventoryManager } from './pages/InventoryManager'; 
 import { CCTVAnalytics } from './pages/CCTVAnalytics';
 import { Legal } from './pages/Legal';
 import { EnterprisePortal } from './pages/EnterprisePortal';
 import OnboardingWizard from './components/OnboardingWizard';
-import { AppView, User } from './types';
+import { AppView, User, SOP } from './types';
 import { authService } from './services/authService';
 
 function App() {
@@ -28,6 +29,10 @@ function App() {
   const [showEnterprise, setShowEnterprise] = useState(false);
   const [legalPage, setLegalPage] = useState<'terms' | 'privacy' | 'refund' | 'shipping' | null>(null);
   const [publicSopId, setPublicSopId] = useState<string | null>(null);
+  
+  // State for navigating to specific items from other modules
+  const [pendingSop, setPendingSop] = useState<SOP | null>(null);
+  const [pendingStrategyQuery, setPendingStrategyQuery] = useState<string | null>(null);
   
   // Initialize theme from localStorage or system preference
   const [theme, setTheme] = useState<'light'|'dark'>(() => {
@@ -71,6 +76,20 @@ function App() {
       setShowEnterprise(false);
   };
 
+  const handleViewChange = (view: AppView, query?: string) => {
+      setCurrentView(view);
+      
+      // Handle query passing for Strategy
+      if (view === AppView.STRATEGY && query) {
+          setPendingStrategyQuery(query);
+      } else if (view !== AppView.STRATEGY) {
+          setPendingStrategyQuery(null);
+      }
+
+      // Clear pending state when leaving the target view for SOP
+      if (view !== AppView.SOP) setPendingSop(null);
+  };
+
   // Priority Render: Public SOP Viewer (No Login Required)
   if (publicSopId) {
       return <PublicSOPViewer sopId={publicSopId} onExit={() => {
@@ -99,24 +118,42 @@ function App() {
 
   return (
     <div className={`min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white flex transition-colors ${theme}`}>
-      <Sidebar currentView={currentView} onChangeView={setCurrentView} user={user!} onLogout={authService.logout} />
+      <Sidebar currentView={currentView} onChangeView={handleViewChange} user={user!} onLogout={authService.logout} />
       <div className="flex-1 ml-64 flex flex-col">
         <Header 
             theme={theme} 
             toggleTheme={() => setTheme(t => t==='light'?'dark':'light')} 
             currentView={currentView} 
-            onChangeView={setCurrentView}
+            onChangeView={handleViewChange}
             user={user!} 
         />
         <main className="p-8 flex-1 overflow-y-auto">
-            {currentView === AppView.DASHBOARD && <Dashboard user={user!} onChangeView={setCurrentView} />}
-            {currentView === AppView.CCTV_ANALYTICS && <CCTVAnalytics user={user!} />}
+            {currentView === AppView.DASHBOARD && <Dashboard user={user!} onChangeView={handleViewChange} />}
+            {currentView === AppView.CCTV_ANALYTICS && (
+                <CCTVAnalytics 
+                    user={user!} 
+                    onChangeView={handleViewChange} 
+                    onActionSOP={(sop) => setPendingSop(sop)} 
+                />
+            )}
             {currentView === AppView.RECIPES && <RecipeHub user={user!} />}
             {currentView === AppView.INVENTORY && <InventoryManager user={user!} />}
             {currentView === AppView.MENU_GENERATOR && <MenuGenerator user={user!} />}
-            {currentView === AppView.SOP && <SOPStudio user={user!} />}
-            {currentView === AppView.STRATEGY && <Strategy user={user!} />}
-            {currentView === AppView.KITCHEN_WORKFLOW && <KitchenWorkflow user={user!} />}
+            {currentView === AppView.MENU_ENGINEERING && (
+                <MenuEngineering 
+                    user={user!} 
+                    onStrategize={(q) => handleViewChange(AppView.STRATEGY, q)}
+                />
+            )}
+            {currentView === AppView.SOP && <SOPStudio user={user!} initialSop={pendingSop} />}
+            {currentView === AppView.STRATEGY && (
+                <Strategy 
+                    user={user!} 
+                    initialQuery={pendingStrategyQuery} 
+                    onQueryConsumed={() => setPendingStrategyQuery(null)}
+                />
+            )}
+            {currentView === AppView.KITCHEN_DESIGNING && <KitchenDesigning user={user!} />}
             {currentView === AppView.VIDEO && <VideoStudio user={user!} />}
             {currentView === AppView.INTEGRATIONS && <Integrations />}
             {currentView === AppView.BILLING && <Billing user={user!} onUpgrade={()=>{}} />}

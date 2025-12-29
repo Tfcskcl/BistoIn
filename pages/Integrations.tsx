@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { UploadCloud, CheckCircle2, Server, Loader2, X, FileSpreadsheet, Download, Settings, Key, AlertTriangle, ArrowRight, ShieldCheck, BookOpen, ExternalLink, Save, Receipt, Instagram, Facebook, MapPin, Megaphone, Image as ImageIcon, Link2, LogOut, Globe, User as UserIcon } from 'lucide-react';
-import { storageService } from '../services/storageService';
-import { POSChangeRequest, UserRole, SocialStats } from '../types';
+import { UploadCloud, CheckCircle2, Server, Loader2, X, FileSpreadsheet, Download, Settings, Key, AlertTriangle, ArrowRight, ShieldCheck, BookOpen, ExternalLink, Save, Receipt, Instagram, Facebook, MapPin, Megaphone, ImageIcon, Link2, LogOut, Globe, UserIcon, BarChart3, FileJson, Archive, Database, ShieldAlert, Cpu, IndianRupee, History, Trash2, Calendar, Plus, Users, ShoppingBag, Wallet, Network, Settings2 } from 'lucide-react';
+import { storageService, storageEvents } from '../services/storageService';
+import { ManualSalesEntry, ManualPurchaseEntry, ManualExpenseEntry, ManualManpowerEntry, User, IntegrationConfig } from '../types';
 import { authService } from '../services/authService';
 
 interface IntegrationItem {
@@ -12,874 +12,575 @@ interface IntegrationItem {
   status: string;
   lastSync?: string;
   loading?: boolean;
-  connectedAccount?: string; // For Social Media handles
 }
 
-// Configuration Guidelines & Schema
-const POS_CONFIGS: Record<string, {
-    steps: string[];
-    fields: { key: string; label: string; placeholder: string }[];
-    docsUrl: string;
-}> = {
-    petpooja: {
-        steps: [
-            "Log in to your Petpooja Admin Dashboard.",
-            "Navigate to 'Marketplace' > 'Third Party Integrations' in the sidebar.",
-            "Search for 'BistroIntelligence' in the search bar.",
-            "Click 'Enable' to generate your API credentials.",
-            "Copy the 'App Key' and 'Restaurant ID' and paste them here."
-        ],
-        fields: [
-            { key: 'appKey', label: 'App Key / API Key', placeholder: 'pp_live_...' },
-            { key: 'restId', label: 'Restaurant ID', placeholder: 'e.g. 238492' }
-        ],
-        docsUrl: '#'
-    },
-    posist: {
-        steps: [
-            "Log in to the Posist Enterprise portal.",
-            "Go to 'Administration' > 'API Management'.",
-            "Create a new API Client named 'BistroIntel'.",
-            "Note down the 'Customer Key' and base URL provided."
-        ],
-        fields: [
-            { key: 'customerKey', label: 'Customer Key', placeholder: 'Enter Customer Key' },
-            { key: 'baseUrl', label: 'Base URL', placeholder: 'https://api.posist.com/...' }
-        ],
-        docsUrl: '#'
-    },
-    default: {
-        steps: [
-            "Contact your POS account manager to request API Access.",
-            "Ask for the 'Partner API Key' and 'Secret'.",
-            "Enter the credentials below to authorize the connection."
-        ],
-        fields: [
-            { key: 'apiKey', label: 'API Key', placeholder: 'rzp_live_RYndnOARtD6tmd' },
-            { key: 'secret', label: 'Client Secret', placeholder: 'Enter Secret' }
-        ],
-        docsUrl: '#'
-    }
-};
-
 export const Integrations: React.FC = () => {
+  const user = authService.getCurrentUser();
+  const [activeTab, setActiveTab] = useState<'network' | 'manual' | 'archive'>('network');
+  const [manualCategory, setManualCategory] = useState<'sales' | 'purchase' | 'expense' | 'manpower'>('sales');
+  
+  const [posLinks, setPosLinks] = useState<Record<string, boolean>>({});
   const [integrations, setIntegrations] = useState<IntegrationItem[]>([
     { id: 'petpooja', name: 'Petpooja', icon: 'P', status: 'disconnected' },
-    { id: 'rista', name: 'Rista', icon: 'R', status: 'disconnected' },
-    { id: 'posist', name: 'Posist', icon: 'Po', status: 'disconnected' },
-    { id: 'urbanpiper', name: 'UrbanPiper', icon: 'U', status: 'disconnected' },
-    { id: 'zomato', name: 'Zomato', icon: 'Z', status: 'disconnected' },
     { id: 'swiggy', name: 'Swiggy', icon: 'S', status: 'disconnected' },
+    { id: 'zomato', name: 'Zomato', icon: 'Z', status: 'disconnected' },
   ]);
 
-  const [marketingApps, setMarketingApps] = useState<IntegrationItem[]>([
-      { id: 'instagram', name: 'Instagram', icon: <Instagram size={20} />, status: 'disconnected' },
-      { id: 'facebook', name: 'Facebook', icon: <Facebook size={20} />, status: 'disconnected' },
-      { id: 'google_business', name: 'Google Business', icon: <MapPin size={20} />, status: 'disconnected' }
-  ]);
+  // Integration Config State
+  const [configModal, setConfigModal] = useState<IntegrationItem | null>(null);
+  const [currentConfig, setCurrentConfig] = useState<IntegrationConfig>({ storeId: '', apiKey: '', apiSecret: '' });
 
-  const [uploading, setUploading] = useState<string | null>(null);
-  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
-  const [pendingRequests, setPendingRequests] = useState<POSChangeRequest[]>([]);
-  const currentUser = authService.getCurrentUser();
-  
-  // Configuration Modal State
-  const [configuringId, setConfiguringId] = useState<string | null>(null);
-  const [configTab, setConfigTab] = useState<'guide' | 'settings'>('guide');
-  const [configValues, setConfigValues] = useState<Record<string, string>>({});
-  const [savingConfig, setSavingConfig] = useState(false);
+  // Manual Data States
+  const [salesEntries, setSalesEntries] = useState<ManualSalesEntry[]>([]);
+  const [purchaseEntries, setPurchaseEntries] = useState<ManualPurchaseEntry[]>([]);
+  const [expenseEntries, setExpenseEntries] = useState<ManualExpenseEntry[]>([]);
+  const [manpowerEntries, setManualManpower] = useState<ManualManpowerEntry[]>([]);
 
-  // Social Auth Modal State
-  const [authModalProvider, setAuthModalProvider] = useState<string | null>(null);
-  const [authInput, setAuthInput] = useState(''); // Stores URL or Username
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const purchaseInputRef = useRef<HTMLInputElement>(null);
-  const expenseInputRef = useRef<HTMLInputElement>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
-      if (currentUser) {
-          const requests = storageService.getPOSChangeRequests(currentUser.id).filter(r => r.status === 'pending');
-          setPendingRequests(requests);
-          
-          // Restore Social connections state from storage
-          const stats = storageService.getSocialStats(currentUser.id);
-          setMarketingApps(prev => prev.map(app => {
-              const stat = stats.find(s => s.platform === app.id);
-              if (stat) {
-                  return { ...app, status: 'connected', connectedAccount: stat.handle, lastSync: 'Just now' };
-              }
-              return app;
-          }));
-      }
-  }, [currentUser?.id]);
+      if (user) {
+          const links = storageService.getPOSConnections(user.id);
+          setPosLinks(links);
+          setIntegrations(prev => prev.map(int => ({
+              ...int,
+              status: links[int.id] ? 'connected' : 'disconnected',
+              lastSync: links[int.id] ? 'Recently synced' : undefined
+          })));
 
-  const togglePOSConnection = (id: string) => {
+          setSalesEntries(storageService.getManualSales(user.id));
+          setPurchaseEntries(storageService.getManualPurchases(user.id));
+          setExpenseEntries(storageService.getManualExpenses(user.id));
+          setManualManpower(storageService.getManualManpower(user.id));
+      }
+  }, []);
+
+  const handleOpenConfig = (item: IntegrationItem) => {
+      if (!user) return;
+      const saved = storageService.getIntegrationConfig(user.id, item.id);
+      setCurrentConfig(saved || { storeId: '', apiKey: '', apiSecret: '' });
+      setConfigModal(item);
+  };
+
+  const handleSaveConfig = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!user || !configModal) return;
+      storageService.saveIntegrationConfig(user.id, configModal.id, currentConfig);
+      storageService.setPOSConnection(user.id, configModal.id, true);
+      
+      setPosLinks(prev => ({ ...prev, [configModal.id]: true }));
       setIntegrations(prev => prev.map(int => {
-          if (int.id === id) return { ...int, loading: true };
+          if (int.id === configModal.id) {
+              return { ...int, status: 'connected', lastSync: 'Authorized just now' };
+          }
           return int;
       }));
+      setConfigModal(null);
+  };
 
+  const handleExportBundle = () => {
+      setIsExporting(true);
+      const projectBundle = {
+          metadata: {
+              projectName: "BistroConnect_Project_Active",
+              exportDate: new Date().toISOString(),
+              version: "2.5.0",
+              engine: "Gemini-3-Pro-Unified"
+          },
+          data: {
+              localStorage: {} as Record<string, string>,
+              schemas: ["Recipe", "SOP", "Inventory", "CCTV", "Strategy", "ManualIngress"]
+          }
+      };
+
+      for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('bistro_') || key === 'theme')) {
+              projectBundle.data.localStorage[key] = localStorage.getItem(key) || "";
+          }
+      }
+      
+      const blob = new Blob([JSON.stringify(projectBundle, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `BistroIntelligence_Master_Bundle_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      setTimeout(() => setIsExporting(false), 2000);
+  };
+
+  const togglePOSConnection = (id: string) => {
+      if (!user) return;
+      setIntegrations(prev => prev.map(int => int.id === id ? { ...int, loading: true } : int));
+      
       setTimeout(() => {
+          const currentStatus = posLinks[id] || false;
+          const newStatus = !currentStatus;
+          storageService.setPOSConnection(user.id, id, newStatus);
+          setPosLinks(prev => ({ ...prev, [id]: newStatus }));
+          
           setIntegrations(prev => prev.map(int => {
               if (int.id === id) {
-                  const isConnected = int.status === 'connected';
-                  return {
-                      ...int,
-                      status: isConnected ? 'disconnected' : 'connected',
-                      lastSync: !isConnected ? 'Just now' : undefined,
-                      loading: false
-                  };
+                  return { ...int, status: newStatus ? 'connected' : 'disconnected', lastSync: newStatus ? 'Just now' : undefined, loading: false };
               }
               return int;
           }));
-          
-          const target = integrations.find(i => i.id === id);
-          if (target && target.status === 'disconnected') {
-              handleConfigure(id);
-          }
-      }, 1500);
+      }, 800);
   };
 
-  const handleConfigure = (id: string) => {
-      setConfiguringId(id);
-      setConfigTab('guide'); // Start with guide
-      setConfigValues({});
-  };
-
-  const handleSaveConfig = () => {
-      setSavingConfig(true);
-      setTimeout(() => {
-          setSavingConfig(false);
-          setConfiguringId(null);
-          setUploadSuccess(`Configuration for ${integrations.find(i => i.id === configuringId)?.name} saved successfully.`);
-          
-          // Simulate Data Sync on Connect
-          if (currentUser) {
-              const mockSales = generateMockSales(30);
-              storageService.saveSalesData(currentUser.id, mockSales);
-          }
-          
-          setTimeout(() => setUploadSuccess(null), 3000);
-      }, 1000);
-  };
-
-  // --- SOCIAL MEDIA HANDLERS ---
-  const openSocialAuth = (id: string) => {
-      setAuthModalProvider(id);
-      setAuthInput('');
-  };
-
-  const handleSocialConnectSuccess = () => {
-      if (!authModalProvider || !authInput.trim()) return;
-      setIsAuthenticating(true);
-
-      const provider = authModalProvider; // Capture current provider
-      const rawInput = authInput.trim();
-
-      // Simulate API Handshake & Data Fetch
-      setTimeout(() => {
-          try {
-              const platformId = provider as 'instagram' | 'facebook' | 'google_business';
-              let handle = rawInput;
-              
-              // Robust URL Parsing
-              try {
-                  if (handle.includes('.') && !handle.startsWith('@')) {
-                       // Ensure protocol present for URL parsing
-                       const urlStr = handle.startsWith('http') ? handle : `https://${handle}`;
-                       const url = new URL(urlStr);
-                       // Extract last path segment that isn't empty
-                       const pathSegments = url.pathname.split('/').filter(p => p && p !== 'home' && p !== 'profile');
-                       if (pathSegments.length > 0) {
-                           handle = pathSegments[pathSegments.length - 1];
-                       }
-                  }
-              } catch (e) {
-                  // Fallback simple split if URL parsing fails
-                  if (handle.includes('/')) {
-                      const parts = handle.split('/');
-                      handle = parts[parts.length - 1] || parts[parts.length - 2]; 
-                  }
-              }
-
-              if (platformId === 'instagram' && !handle.startsWith('@')) handle = `@${handle}`;
-
-              // Generate Mock Stats
-              let newStats: SocialStats | null = null;
-              if (platformId === 'instagram') {
-                  newStats = {
-                      platform: 'instagram',
-                      handle: handle,
-                      lastSync: new Date().toISOString(),
-                      metrics: [
-                          { label: 'Followers', value: (Math.floor(Math.random() * 20000) + 500).toLocaleString(), trend: 12 },
-                          { label: 'Engagement Rate', value: (Math.random() * 5 + 1).toFixed(1) + '%', trend: -2 },
-                          { label: 'Reach (7d)', value: (Math.floor(Math.random() * 50000) + 1000).toLocaleString(), trend: 5 }
-                      ]
-                  };
-              } else if (platformId === 'facebook') {
-                  newStats = {
-                      platform: 'facebook',
-                      handle: handle,
-                      lastSync: new Date().toISOString(),
-                      metrics: [
-                          { label: 'Page Likes', value: (Math.floor(Math.random() * 10000) + 200).toLocaleString(), trend: 3 },
-                          { label: 'Post Reach', value: (Math.floor(Math.random() * 15000) + 500).toLocaleString(), trend: 8 }
-                  ]
-                  };
-              } else if (platformId === 'google_business') {
-                  newStats = {
-                      platform: 'google_business',
-                      handle: handle,
-                      lastSync: new Date().toISOString(),
-                      metrics: [
-                          { label: 'Search Views', value: (Math.floor(Math.random() * 5000) + 100).toLocaleString(), trend: 15 },
-                          { label: 'Calls', value: (Math.floor(Math.random() * 100) + 5).toString(), trend: 0 },
-                          { label: 'Directions', value: (Math.floor(Math.random() * 200) + 10).toString(), trend: 10 }
-                      ]
-                  };
-              }
-
-              if (currentUser && newStats) {
-                  const currentStats = storageService.getSocialStats(currentUser.id);
-                  // Remove old if exists
-                  const updatedStats = currentStats.filter(s => s.platform !== platformId);
-                  updatedStats.push(newStats);
-                  storageService.saveSocialStats(currentUser.id, updatedStats);
-              }
-
-              setMarketingApps(prev => prev.map(app => {
-                  if (app.id === provider) {
-                      return {
-                          ...app,
-                          status: 'connected',
-                          connectedAccount: handle,
-                          lastSync: 'Just now'
-                      };
-                  }
-                  return app;
-              }));
-
-              setUploadSuccess(`Successfully linked ${handle} & synced data!`);
-              setTimeout(() => setUploadSuccess(null), 3000);
-          
-          } catch (error) {
-              console.error("Social Connect Error", error);
-              setUploadSuccess("Failed to connect account. Please check details.");
-          } finally {
-              setIsAuthenticating(false);
-              setAuthModalProvider(null);
-          }
-      }, 2000);
-  };
-
-  const handleSocialDisconnect = (id: string) => {
-      if (confirm("Are you sure you want to disconnect? Dashboard charts will be cleared.")) {
-        if (currentUser) {
-            const currentStats = storageService.getSocialStats(currentUser.id);
-            const updatedStats = currentStats.filter(s => s.platform !== id);
-            storageService.saveSocialStats(currentUser.id, updatedStats);
-        }
-
-        setMarketingApps(prev => prev.map(app => {
-            if (app.id === id) {
-                return {
-                    ...app,
-                    status: 'disconnected',
-                    connectedAccount: undefined,
-                    lastSync: undefined
-                };
-            }
-            return app;
-        }));
-      }
-  };
-
-  // --- FILE UPLOADS ---
-
-  const handleUploadClick = () => {
-      fileInputRef.current?.click();
-  };
-
-  const handlePurchaseClick = () => {
-      purchaseInputRef.current?.click();
-  };
-  
-  const handleExpenseClick = () => {
-      expenseInputRef.current?.click();
-  };
-
-  // Helper to generate realistic looking daily sales data
-  const generateMockSales = (days: number) => {
-      const data = [];
-      const today = new Date();
-      for (let i = days; i >= 0; i--) {
-          const d = new Date(today);
-          d.setDate(d.getDate() - i);
-          // Random revenue between 15k and 50k
-          const rev = Math.floor(Math.random() * 35000) + 15000;
-          const items = Math.floor(rev / 350); // Approx avg ticket
-          data.push({
-              date: d.toISOString().split('T')[0],
-              revenue: rev,
-              items_sold: items
-          });
-      }
-      return data;
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
-      if (e.target.files && e.target.files.length > 0) {
-          const files = Array.from(e.target.files);
-          const count = files.length;
-          
-          setUploading(type);
-          setUploadSuccess(null);
-          
-          // Simulate Processing Delay
-          setTimeout(() => {
-              setUploading(null);
-              setUploadSuccess(`${type}: ${count} file${count > 1 ? 's' : ''} processed successfully.`);
-              
-              // --- INJECT DATA EFFECT ---
-              if (currentUser) {
-                  if (type === 'Sales Data') {
-                      // Generate and save sales data to enable Dashboard charts
-                      const mockSales = generateMockSales(30);
-                      storageService.saveSalesData(currentUser.id, mockSales);
-                  }
-                  // For expenses/purchases we could assume it affects the same dataset for this demo
-                  // or just logging it. But adding Sales data ensures the Dashboard "wakes up"
-                  if (type === 'Operational Expenses' || type === 'Purchase Logs') {
-                       // Ensure basic sales data exists so the user sees the dashboard
-                       const currentSales = storageService.getSalesData(currentUser.id);
-                       if (!currentSales || currentSales.length === 0) {
-                           const mockSales = generateMockSales(30);
-                           storageService.saveSalesData(currentUser.id, mockSales);
-                       }
-                  }
-              }
-
-              if (fileInputRef.current) fileInputRef.current.value = '';
-              if (purchaseInputRef.current) purchaseInputRef.current.value = '';
-              if (expenseInputRef.current) expenseInputRef.current.value = '';
-          }, 2000);
-      }
-  };
-
-  const handleProcessPOSRequest = (req: POSChangeRequest, action: 'approved' | 'rejected') => {
-      if (action === 'approved' && currentUser?.role !== UserRole.OWNER) {
-          alert("Only the Restaurant Owner can confirm POS changes.");
-          return;
-      }
+  const handleAddManualEntry = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!user) return;
+      const formData = new FormData(e.currentTarget as HTMLFormElement);
       
-      if (!currentUser) return;
-
-      if (action === 'approved') {
-          console.log(`Sending API Request to POS: Update SKU ${req.sku_id} price to ${req.new_price} with confirm=true`);
+      if (manualCategory === 'sales') {
+          const entry: ManualSalesEntry = {
+              id: `sale_${Date.now()}`,
+              date: formData.get('date') as string,
+              revenue: Number(formData.get('revenue')),
+              orderCount: Number(formData.get('orders')),
+              channel: formData.get('channel') as any
+          };
+          const updated = [entry, ...salesEntries];
+          setSalesEntries(updated);
+          storageService.saveManualSales(user.id, updated);
+      } else if (manualCategory === 'purchase') {
+          const entry: ManualPurchaseEntry = {
+              id: `pur_${Date.now()}`,
+              date: formData.get('date') as string,
+              supplier: formData.get('supplier') as string,
+              amount: Number(formData.get('amount')),
+              category: formData.get('category') as string
+          };
+          const updated = [entry, ...purchaseEntries];
+          setPurchaseEntries(updated);
+          storageService.saveManualPurchases(user.id, updated);
+      } else if (manualCategory === 'expense') {
+          const entry: ManualExpenseEntry = {
+              id: `exp_${Date.now()}`,
+              date: formData.get('date') as string,
+              type: formData.get('type') as any,
+              amount: Number(formData.get('amount')),
+              note: formData.get('note') as string
+          };
+          const updated = [entry, ...expenseEntries];
+          setExpenseEntries(updated);
+          storageService.saveManualExpenses(user.id, updated);
+      } else if (manualCategory === 'manpower') {
+          const entry: ManualManpowerEntry = {
+              id: `man_${Date.now()}`,
+              date: formData.get('date') as string,
+              staffCount: Number(formData.get('staff')),
+              totalSalaries: Number(formData.get('salaries')),
+              overtimeHours: Number(formData.get('overtime'))
+          };
+          const updated = [entry, ...manpowerEntries];
+          setManualManpower(updated);
+          storageService.saveManualManpower(user.id, updated);
       }
-
-      storageService.updatePOSChangeRequest(currentUser.id, req.id, action);
-      setPendingRequests(prev => prev.filter(p => p.id !== req.id));
-      
-      if (action === 'approved') {
-        setUploadSuccess(`Updated ${req.item_name} on POS successfully.`);
-        setTimeout(() => setUploadSuccess(null), 3000);
-      }
-  };
-
-  const selectedConfig = configuringId ? (POS_CONFIGS[configuringId] || POS_CONFIGS['default']) : null;
-  const selectedIntegration = integrations.find(i => i.id === configuringId);
-
-  // Social Auth Modal Component logic
-  const renderSocialAuthModal = () => {
-      if (!authModalProvider) return null;
-      
-      const config = {
-          instagram: { 
-              color: 'bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600', 
-              icon: <Instagram size={48} className="text-white"/>,
-              title: 'Instagram',
-              permissions: ['Manage Posts', 'Read Profile', 'Access Insights'] 
-          },
-          facebook: { 
-              color: 'bg-blue-600', 
-              icon: <Facebook size={48} className="text-white"/>,
-              title: 'Facebook',
-              permissions: ['Manage Pages', 'Publish Content', 'Page Analytics'] 
-          },
-          google_business: { 
-              color: 'bg-white border-2 border-slate-100', 
-              icon: <div className="p-2"><MapPin size={40} className="text-blue-500"/></div>,
-              title: 'Google Business Profile',
-              textColor: 'text-slate-800',
-              permissions: ['Manage Locations', 'Reply to Reviews', 'Update Business Info'] 
-          }
-      }[authModalProvider] || { color: 'bg-slate-800', icon: <Server/>, title: 'App', permissions: [] };
-
-      // @ts-ignore
-      const isGoogle = authModalProvider === 'google_business';
-
-      return (
-          <div className="fixed inset-0 z-[60] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-in relative">
-                  <div className={`h-32 ${config.color} flex items-center justify-center`}>
-                      {config.icon}
-                  </div>
-                  
-                  <div className="p-8 text-center">
-                      <h3 className="text-xl font-bold text-slate-900 mb-2">Connect {config.title}</h3>
-                      <p className="text-sm text-slate-500 mb-6">
-                          Enter your credentials to sync analytics and enable auto-posting.
-                      </p>
-
-                      <div className="text-left mb-6 space-y-4">
-                          <div>
-                              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                                  {authModalProvider === 'google_business' ? 'Business Name or URL' : 'Username or Page URL'}
-                              </label>
-                              <div className="relative">
-                                  {authModalProvider === 'instagram' ? <UserIcon size={16} className="absolute left-3 top-2.5 text-slate-400" /> : <Globe size={16} className="absolute left-3 top-2.5 text-slate-400" />}
-                                  <input 
-                                      type="text" 
-                                      value={authInput}
-                                      onChange={(e) => setAuthInput(e.target.value)}
-                                      placeholder={authModalProvider === 'instagram' ? '@the_golden_spoon' : 'https://...'}
-                                      className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900"
-                                  />
-                              </div>
-                          </div>
-                      </div>
-
-                      <button 
-                        onClick={handleSocialConnectSuccess}
-                        disabled={isAuthenticating || !authInput}
-                        className={`w-full py-3 rounded-lg font-bold text-white transition-all shadow-lg flex items-center justify-center gap-2 ${isGoogle ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-900 hover:bg-slate-800'}`}
-                      >
-                          {isAuthenticating ? <Loader2 className="animate-spin" size={20} /> : null}
-                          {isAuthenticating ? 'Syncing Data...' : `Connect & Sync`}
-                      </button>
-                      
-                      <button 
-                        onClick={() => setAuthModalProvider(null)}
-                        className="mt-4 text-sm text-slate-400 hover:text-slate-600 font-medium"
-                      >
-                          Cancel
-                      </button>
-                  </div>
-              </div>
-          </div>
-      );
+      (e.target as HTMLFormElement).reset();
   };
 
   return (
-    <div className="space-y-8 animate-fade-in max-w-6xl mx-auto relative">
-      
-      {renderSocialAuthModal()}
-
-      {/* POS Configuration Modal */}
-      {configuringId && selectedConfig && selectedIntegration && (
-          <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-fade-in-up">
-                  <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                      <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xl">
-                              {selectedIntegration.icon}
-                          </div>
-                          <div>
-                              <h3 className="text-xl font-bold text-slate-900">Configure {selectedIntegration.name}</h3>
-                              <p className="text-sm text-slate-500">Connect your account to sync data</p>
-                          </div>
-                      </div>
-                      <button onClick={() => setConfiguringId(null)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500">
-                          <X size={20} />
-                      </button>
-                  </div>
-                  
-                  <div className="flex border-b border-slate-200">
-                      <button 
-                        onClick={() => setConfigTab('guide')}
-                        className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-colors ${configTab === 'guide' ? 'border-emerald-500 text-emerald-700 bg-emerald-50/50' : 'border-transparent text-slate-500 hover:bg-slate-50'}`}
-                      >
-                          <BookOpen size={16} /> Setup Guide
-                      </button>
-                      <button 
-                        onClick={() => setConfigTab('settings')}
-                        className={`flex-1 py-3 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-colors ${configTab === 'settings' ? 'border-emerald-500 text-emerald-700 bg-emerald-50/50' : 'border-transparent text-slate-500 hover:bg-slate-50'}`}
-                      >
-                          <Settings size={16} /> Credentials
-                      </button>
-                  </div>
-
-                  <div className="p-8 min-h-[300px]">
-                      {configTab === 'guide' ? (
-                          <div className="space-y-6">
-                              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 text-sm text-blue-800 flex gap-3">
-                                  <AlertTriangle size={20} className="shrink-0" />
-                                  <p>Follow these steps on your {selectedIntegration.name} dashboard to obtain the API credentials required for the connection.</p>
-                              </div>
-                              <div className="space-y-4">
-                                  {selectedConfig.steps.map((step, i) => (
-                                      <div key={i} className="flex gap-4">
-                                          <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center text-xs font-bold text-slate-600 shrink-0 mt-0.5">
-                                              {i + 1}
-                                          </div>
-                                          <p className="text-slate-700 text-sm">{step}</p>
-                                      </div>
-                                  ))}
-                              </div>
-                              <div className="pt-4 mt-4 border-t border-slate-100">
-                                  <a href="#" className="text-emerald-600 font-bold text-sm flex items-center gap-1 hover:underline">
-                                      View Official Documentation <ExternalLink size={14} />
-                                  </a>
-                              </div>
-                          </div>
-                      ) : (
-                          <div className="space-y-4">
-                              {selectedConfig.fields.map((field) => (
-                                  <div key={field.key}>
-                                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">{field.label}</label>
-                                      <div className="relative">
-                                          <input 
-                                              type="text" 
-                                              placeholder={field.placeholder}
-                                              value={configValues[field.key] || ''}
-                                              onChange={(e) => setConfigValues({...configValues, [field.key]: e.target.value})}
-                                              className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all
-                                                  ${['apiKey', 'appKey', 'customerKey'].some(k => field.key === k)
-                                                      ? 'border-emerald-300 bg-emerald-50/30 font-mono text-sm shadow-sm' 
-                                                      : 'border-slate-300'
-                                                  }
-                                              `}
-                                          />
-                                          <Key size={16} className="absolute left-3 top-2.5 text-slate-400" />
-                                      </div>
-                                  </div>
-                              ))}
-                              <div className="bg-slate-50 p-3 rounded text-xs text-slate-500 border border-slate-200 mt-4">
-                                  Note: Your credentials are encrypted using AES-256 before being stored. We only use read-access for sales data and write-access for menu syncing.
-                              </div>
-                          </div>
-                      )}
-                  </div>
-
-                  <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-                      <button 
-                        onClick={() => setConfiguringId(null)}
-                        className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-200 rounded-lg transition-colors"
-                      >
-                          Cancel
-                      </button>
-                      <button 
-                        onClick={configTab === 'guide' ? () => setConfigTab('settings') : handleSaveConfig}
-                        disabled={savingConfig}
-                        className="px-6 py-2 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
-                      >
-                          {savingConfig ? <Loader2 size={16} className="animate-spin" /> : configTab === 'guide' ? <ArrowRight size={16} /> : <Save size={16} />}
-                          {savingConfig ? 'Verifying...' : configTab === 'guide' ? 'Enter Credentials' : 'Save Configuration'}
-                      </button>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      <div className="flex justify-between items-end border-b border-slate-200 pb-6">
+    <div className="space-y-8 animate-fade-in max-w-6xl mx-auto">
+      <div className="flex justify-between items-end border-b border-slate-200 dark:border-slate-800 pb-6">
         <div>
-            <h2 className="text-2xl font-bold text-slate-800">Data & Integrations</h2>
-            <p className="text-slate-500 mt-1">Connect your billing software, social media, or upload operational data.</p>
+            <h2 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Nexus Control</h2>
+            <p className="text-slate-500 dark:text-slate-400 mt-1 font-mono text-xs">// MANAGE_NODES // DATA_STREAMS // ARCHIVE</p>
         </div>
-        <div className="flex gap-2">
-            <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full border border-emerald-100 flex items-center gap-1">
-                <CheckCircle2 size={12} /> System Operational
-            </span>
+        <div className="flex gap-4">
+             <button 
+                onClick={handleExportBundle}
+                disabled={isExporting}
+                className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl border border-slate-200 dark:border-slate-700"
+            >
+                {isExporting ? <Loader2 size={16} className="animate-spin text-emerald-500" /> : <Archive size={16} className="text-indigo-500" />}
+                Package Master Project
+            </button>
         </div>
       </div>
 
-      {pendingRequests.length > 0 && (
-          <div className="bg-amber-50 p-6 rounded-xl border border-amber-200 shadow-sm animate-fade-in">
-              <div className="flex items-center gap-2 mb-4">
-                  <AlertTriangle className="text-amber-600" size={24} />
-                  <div>
-                      <h3 className="text-lg font-bold text-slate-800">Pending POS Updates</h3>
-                      <p className="text-sm text-slate-600">The following AI-suggested changes require Owner confirmation before syncing to billing.</p>
-                  </div>
-              </div>
-              <div className="bg-white rounded-lg border border-amber-100 overflow-hidden">
-                  <table className="w-full text-sm text-left">
-                      <thead className="bg-amber-50/50 text-slate-500 font-bold border-b border-amber-100">
-                          <tr>
-                              <th className="px-4 py-3">Menu Item</th>
-                              <th className="px-4 py-3">Current Price</th>
-                              <th className="px-4 py-3">New Price</th>
-                              <th className="px-4 py-3">Requested By</th>
-                              <th className="px-4 py-3 text-right">Action</th>
-                          </tr>
-                      </thead>
-                      <tbody className="divide-y divide-amber-50">
-                          {pendingRequests.map(req => (
-                              <tr key={req.id} className="hover:bg-slate-50">
-                                  <td className="px-4 py-3 font-medium text-slate-800">{req.item_name} <span className="text-xs text-slate-400 font-mono ml-1">({req.sku_id})</span></td>
-                                  <td className="px-4 py-3 text-slate-500">₹{req.old_price}</td>
-                                  <td className="px-4 py-3 font-bold text-emerald-600 flex items-center gap-1">
-                                      ₹{req.new_price}
-                                      <span className="text-xs font-normal text-emerald-500 bg-emerald-50 px-1 rounded">
-                                          {(((req.new_price - req.old_price) / req.old_price) * 100).toFixed(0)}%
-                                      </span>
-                                  </td>
-                                  <td className="px-4 py-3 text-slate-500 text-xs">
-                                      {req.requested_by}<br/>
-                                      {new Date(req.requested_date).toLocaleDateString()}
-                                  </td>
-                                  <td className="px-4 py-3 text-right">
-                                      <div className="flex justify-end gap-2">
-                                          <button 
-                                            onClick={() => handleProcessPOSRequest(req, 'rejected')}
-                                            className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-red-600 border border-slate-200 rounded hover:bg-red-50"
-                                          >
-                                              Reject
-                                          </button>
-                                          <button 
-                                            onClick={() => handleProcessPOSRequest(req, 'approved')}
-                                            className="px-3 py-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-emerald-600 rounded flex items-center gap-1 transition-colors disabled:opacity-50"
-                                            title={currentUser?.role !== UserRole.OWNER ? "Only Owners can approve" : "Confirm Sync"}
-                                          >
-                                              {currentUser?.role === UserRole.OWNER ? <ShieldCheck size={12}/> : null} Approve & Sync
-                                          </button>
-                                      </div>
-                                  </td>
-                              </tr>
-                          ))}
-                      </tbody>
-                  </table>
-              </div>
-          </div>
-      )}
+      <div className="flex gap-2">
+          <button onClick={() => setActiveTab('network')} className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'network' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-white dark:bg-slate-800 text-slate-500'}`}><Cpu size={14}/> Network Nodes</button>
+          <button onClick={() => setActiveTab('manual')} className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'manual' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-white dark:bg-slate-800 text-slate-500'}`}><Plus size={14}/> Manual Ingress</button>
+          <button onClick={() => setActiveTab('archive')} className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === 'archive' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-white dark:bg-slate-800 text-slate-500'}`}><History size={14}/> Global Archive</button>
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* Left Column: POS + Marketing */}
-        <div className="space-y-8">
-            {/* POS Integrations */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
-                <div className="mb-6">
-                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                        <Server size={20} className="text-blue-600"/> Billing & POS Connectors
-                    </h3>
-                    <p className="text-sm text-slate-500 mt-1">Real-time sales syncing for accurate inventory & revenue analytics.</p>
-                </div>
-                
-                <div className="space-y-4 flex-1">
-                    {integrations.map((pos) => (
-                        <div key={pos.id} className={`p-4 border rounded-xl transition-all ${
-                            pos.status === 'connected' ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-100 hover:border-slate-300'
-                        }`}>
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-4">
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white text-lg shadow-sm ${
-                                        pos.status === 'connected' ? 'bg-emerald-500' : 'bg-slate-400'
-                                    }`}>
+      {activeTab === 'network' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-6">
+                <div className="glass p-8 rounded-[2.5rem] border-slate-200 dark:border-slate-800">
+                    <div className="flex justify-between items-center mb-8">
+                        <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                            <Server className="text-indigo-500" size={24}/> Connected POS Nodes
+                        </h3>
+                        <span className="text-[10px] font-mono text-slate-500">ACTIVE_LINKS: {integrations.filter(i=>i.status==='connected').length}</span>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {integrations.map((pos) => (
+                            <div key={pos.id} className={`p-6 rounded-3xl border transition-all ${pos.status === 'connected' ? 'bg-emerald-500/10 border-emerald-500/30 shadow-lg shadow-emerald-500/5' : 'bg-white dark:bg-slate-950/50 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'}`}>
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className={`w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center font-black text-white text-xl shadow-inner ${pos.status === 'connected' ? 'neural-pulse' : ''}`}>
                                         {pos.icon}
                                     </div>
-                                    <div>
-                                        <h4 className="font-bold text-slate-800">{pos.name}</h4>
-                                        <div className="flex items-center gap-2">
-                                            <span className={`w-2 h-2 rounded-full ${pos.status === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></span>
-                                            <p className="text-xs text-slate-500 font-medium">
-                                                {pos.status === 'connected' ? `Synced: ${pos.lastSync}` : 'Not Connected'}
-                                            </p>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => handleOpenConfig(pos)} className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-colors"><Settings2 size={12}/></button>
+                                        <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${pos.status === 'connected' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+                                            {pos.status}
                                         </div>
                                     </div>
                                 </div>
+                                <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">{pos.name}</h4>
+                                <p className="text-[10px] text-slate-500 mt-1 font-mono uppercase">
+                                    {pos.status === 'connected' ? `LINK_STATUS: OK` : 'NO_ACTIVE_LINK'}
+                                </p>
                                 <button 
-                                    onClick={() => togglePOSConnection(pos.id)}
+                                    onClick={() => pos.status === 'connected' ? togglePOSConnection(pos.id) : handleOpenConfig(pos)} 
                                     disabled={pos.loading}
-                                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm min-w-[100px] flex justify-center ${
-                                    pos.status === 'connected' 
-                                    ? 'bg-white text-red-600 border border-slate-200 hover:bg-red-50 hover:border-red-200' 
-                                    : 'bg-slate-900 text-white hover:bg-slate-800 hover:shadow-md'
-                                }`}>
-                                    {pos.loading ? <Loader2 size={16} className="animate-spin"/> : (pos.status === 'connected' ? 'Disconnect' : 'Connect')}
+                                    className="w-full mt-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800 disabled:opacity-50"
+                                >
+                                    {pos.loading ? <Loader2 size={14} className="animate-spin mx-auto"/> : (pos.status === 'connected' ? 'Break Link' : 'Establish API Link')}
                                 </button>
                             </div>
-                            
-                            {/* Config Status */}
-                            {pos.status === 'connected' && (
-                                <div className="mt-4 pt-3 border-t border-emerald-200/50 animate-fade-in">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs text-emerald-700 font-bold">Configuration Active</span>
-                                        <button 
-                                            onClick={() => handleConfigure(pos.id)}
-                                            className="text-xs flex items-center gap-1 text-emerald-600 hover:text-emerald-800 font-medium"
-                                        >
-                                            <Settings size={12} /> Settings
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
+                        ))}
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="glass p-8 rounded-[2.5rem] border-slate-200 dark:border-slate-800 flex items-center gap-6 group cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-all">
+                        <div className="w-16 h-16 bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-500/20 group-hover:scale-110 transition-transform">
+                            <Key className="text-indigo-500" />
                         </div>
-                    ))}
+                        <div>
+                            <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">API Gateway</h4>
+                            <p className="text-[10px] text-slate-500 mt-1 uppercase font-mono tracking-widest">Global Secret Config</p>
+                        </div>
+                    </div>
+                    <div className="glass p-8 rounded-[2.5rem] border-slate-200 dark:border-slate-800 flex items-center gap-6 group cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-all">
+                        <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/20 group-hover:scale-110 transition-transform">
+                            <Globe className="text-emerald-500" />
+                        </div>
+                        <div>
+                            <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">Cloud Sync</h4>
+                            <p className="text-[10px] text-slate-500 mt-1 uppercase font-mono tracking-widest">Multi-Node Replication</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Social & Marketing Integrations */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
-                <div className="mb-6">
-                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                        <Megaphone size={20} className="text-pink-600"/> Social Media & Marketing
-                    </h3>
-                    <p className="text-sm text-slate-500 mt-1">Connect accounts to sync data and view dashboard analytics.</p>
-                </div>
-                
-                <div className="space-y-4">
-                    {marketingApps.map((app) => (
-                        <div key={app.id} className={`p-4 border rounded-xl transition-all ${
-                            app.status === 'connected' ? 'border-pink-200 bg-pink-50/30' : 'border-slate-100 hover:border-slate-300'
-                        }`}>
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm transition-colors ${
-                                        app.status === 'connected' ? (app.id === 'instagram' ? 'bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600' : app.id === 'facebook' ? 'bg-blue-600' : 'bg-blue-500') : 'bg-slate-400'
-                                    }`}>
-                                        {app.icon}
-                                    </div>
-                                    <div>
-                                        <h4 className="font-bold text-slate-800">{app.name}</h4>
-                                        <p className="text-xs text-slate-500 font-medium flex items-center gap-1">
-                                            {app.status === 'connected' ? (
-                                                <span className="text-pink-600 font-bold flex items-center gap-1">
-                                                    <Link2 size={10} /> {app.connectedAccount || 'Linked'}
-                                                </span>
-                                            ) : 'Not Connected'}
-                                        </p>
-                                    </div>
-                                </div>
-                                
-                                {app.status === 'connected' ? (
-                                    <div className="flex gap-2">
-                                        <button 
-                                            onClick={() => handleSocialDisconnect(app.id)}
-                                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                            title="Disconnect"
-                                        >
-                                            <LogOut size={16} />
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <button 
-                                        onClick={() => openSocialAuth(app.id)}
-                                        className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold transition-all shadow-sm hover:bg-slate-800"
-                                    >
-                                        Connect
-                                    </button>
-                                )}
-                            </div>
+            <div className="lg:col-span-1 space-y-6">
+                <div className="glass p-10 rounded-[2.5rem] border-indigo-500/20 relative overflow-hidden group bg-indigo-500/5">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Network size={100}/></div>
+                    <h3 className="text-xl font-black text-slate-800 dark:text-white mb-2 uppercase tracking-tight">Automated Extraction</h3>
+                    <p className="text-sm text-slate-500 leading-relaxed mb-8">
+                        Using official API technical protocols to fetch your sales, menu, and inventory reports every 24 hours without dashboard login details.
+                    </p>
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center text-[10px] font-mono">
+                            <span className="text-slate-400">NEXT_SCAN:</span>
+                            <span className="text-indigo-500 font-bold">IN_4_HOURS</span>
                         </div>
-                    ))}
+                        <div className="w-full bg-slate-200 dark:bg-slate-800 h-1 rounded-full overflow-hidden">
+                            <div className="bg-indigo-500 h-full w-[75%]"></div>
+                        </div>
+                        <button className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-xl">Force Re-extraction</button>
+                    </div>
                 </div>
             </div>
         </div>
+      )}
 
-        {/* Right Column: Data Upload Section */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full">
-            <div className="mb-6">
-                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <UploadCloud size={20} className="text-emerald-600"/> Manual Data Upload
-                </h3>
-                <p className="text-sm text-slate-500 mt-1">Upload files in any format if you don't use a supported POS.</p>
-            </div>
+      {activeTab === 'manual' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in-up">
+              {/* Category Selector */}
+              <div className="lg:col-span-3 space-y-3">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 ml-2">Ingress Streams</p>
+                  <button onClick={() => setManualCategory('sales')} className={`w-full p-6 rounded-3xl border-2 flex items-center gap-4 transition-all ${manualCategory === 'sales' ? 'border-emerald-500 bg-emerald-500/10 shadow-lg' : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'}`}>
+                      <BarChart3 className={manualCategory === 'sales' ? 'text-emerald-500' : 'text-slate-400'} />
+                      <div className="text-left"><p className={`font-black uppercase tracking-tight ${manualCategory === 'sales' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}`}>Sales Inflow</p><p className="text-[9px] font-mono text-slate-500">REVENUE_DATA</p></div>
+                  </button>
+                  <button onClick={() => setManualCategory('purchase')} className={`w-full p-6 rounded-3xl border-2 flex items-center gap-4 transition-all ${manualCategory === 'purchase' ? 'border-blue-500 bg-blue-500/10 shadow-lg' : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'}`}>
+                      <ShoppingBag className={manualCategory === 'purchase' ? 'text-blue-500' : 'text-slate-400'} />
+                      <div className="text-left"><p className={`font-black uppercase tracking-tight ${manualCategory === 'purchase' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-600 dark:text-slate-300'}`}>Purchases</p><p className="text-[9px] font-mono text-slate-500">INVENTORY_BILLING</p></div>
+                  </button>
+                  <button onClick={() => setManualCategory('expense')} className={`w-full p-6 rounded-3xl border-2 flex items-center gap-4 transition-all ${manualCategory === 'expense' ? 'border-amber-500 bg-amber-500/10 shadow-lg' : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'}`}>
+                      <Wallet className={manualCategory === 'expense' ? 'text-amber-500' : 'text-slate-400'} />
+                      <div className="text-left"><p className={`font-black uppercase tracking-tight ${manualCategory === 'expense' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-600 dark:text-slate-300'}`}>Expenses</p><p className="text-[9px] font-mono text-slate-500">OVERHEAD_COSTS</p></div>
+                  </button>
+                  <button onClick={() => setManualCategory('manpower')} className={`w-full p-6 rounded-3xl border-2 flex items-center gap-4 transition-all ${manualCategory === 'manpower' ? 'border-purple-500 bg-purple-500/10 shadow-lg' : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'}`}>
+                      <Users className={manualCategory === 'manpower' ? 'text-purple-500' : 'text-slate-400'} />
+                      <div className="text-left"><p className={`font-black uppercase tracking-tight ${manualCategory === 'manpower' ? 'text-purple-600 dark:text-purple-400' : 'text-slate-600 dark:text-slate-300'}`}>Manpower</p><p className="text-[9px] font-mono text-slate-500">LABOR_ANALYTICS</p></div>
+                  </button>
+              </div>
 
-            <div className="space-y-4 flex-1">
-                {/* Sales Upload */}
-                <div 
-                    onClick={handleUploadClick}
-                    className="p-6 border-2 border-dashed border-slate-200 rounded-xl hover:bg-slate-50 hover:border-emerald-300 transition-all cursor-pointer group text-center"
-                >
-                    <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                        <FileSpreadsheet size={24} />
-                    </div>
-                    <h4 className="font-bold text-slate-700">Upload Sales Reports</h4>
-                    <p className="text-xs text-slate-400 mt-1">CSV, Excel, PDF, Images</p>
-                    <input 
-                        type="file" 
-                        ref={fileInputRef}
-                        onChange={(e) => handleFileChange(e, 'Sales Data')}
-                        className="hidden" 
-                        multiple
-                        accept=".csv,.xlsx,.xls,.pdf,image/*,.doc,.docx,.txt"
-                    />
-                </div>
+              {/* Data Input Area */}
+              <div className="lg:col-span-9 flex flex-col gap-6">
+                  <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-xl">
+                      <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-8 flex items-center gap-3">
+                          Manual {manualCategory.charAt(0).toUpperCase() + manualCategory.slice(1)} Ingress
+                          <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-400 px-2 py-1 rounded">LOCAL_WRITE_MODE</span>
+                      </h3>
+                      
+                      <form onSubmit={handleAddManualEntry} className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+                          <div>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Entry Date</label>
+                              <input name="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" />
+                          </div>
 
-                {/* Purchase Upload */}
-                <div 
-                    onClick={handlePurchaseClick}
-                    className="p-6 border-2 border-dashed border-slate-200 rounded-xl hover:bg-slate-50 hover:border-blue-300 transition-all cursor-pointer group text-center"
-                >
-                    <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                        <ImageIcon size={24} />
-                    </div>
-                    <h4 className="font-bold text-slate-700">Upload Purchase Logs & Receipts</h4>
-                    <p className="text-xs text-slate-400 mt-1">Invoices, CSV, Excel, or <span className="text-blue-600 font-bold">Photo Receipts</span></p>
-                    <input 
-                        type="file" 
-                        ref={purchaseInputRef}
-                        onChange={(e) => handleFileChange(e, 'Purchase Logs')}
-                        className="hidden" 
-                        multiple
-                        accept=".csv,.xlsx,.xls,.pdf,image/*,.doc,.docx,.txt"
-                    />
-                </div>
+                          {manualCategory === 'sales' && (
+                              <>
+                                  <div>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Revenue (₹)</label>
+                                      <input name="revenue" type="number" required placeholder="0.00" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
+                                  </div>
+                                  <div>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Order Count</label>
+                                      <input name="orders" type="number" required placeholder="0" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
+                                  </div>
+                                  <div>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Channel</label>
+                                      <select name="channel" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none">
+                                          <option>Walk-in</option>
+                                          <option>Online</option>
+                                          <option>Takeaway</option>
+                                      </select>
+                                  </div>
+                              </>
+                          )}
 
-                {/* Expense Upload */}
-                <div 
-                    onClick={handleExpenseClick}
-                    className="p-6 border-2 border-dashed border-slate-200 rounded-xl hover:bg-slate-50 hover:border-purple-300 transition-all cursor-pointer group text-center"
-                >
-                    <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                        <Receipt size={24} />
-                    </div>
-                    <h4 className="font-bold text-slate-700">Upload Expenses & Salaries</h4>
-                    <p className="text-xs text-slate-400 mt-1">Any format (PDF, Excel, Img)</p>
-                    <input 
-                        type="file" 
-                        ref={expenseInputRef}
-                        onChange={(e) => handleFileChange(e, 'Operational Expenses')}
-                        className="hidden" 
-                        multiple
-                        accept=".pdf,image/*,.csv,.xlsx,.xls,.doc,.docx,.txt"
-                    />
-                </div>
-            </div>
-            
-            <div className="mt-6 pt-4 border-t border-slate-100">
-                <button className="w-full py-2 flex items-center justify-center gap-2 text-sm text-slate-500 hover:text-emerald-600 font-bold transition-colors">
-                    <Download size={16} /> Download CSV Templates
-                </button>
-            </div>
-        </div>
-      </div>
+                          {manualCategory === 'purchase' && (
+                              <>
+                                  <div>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Supplier Name</label>
+                                      <input name="supplier" type="text" required placeholder="Vendor ID" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
+                                  </div>
+                                  <div>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Amount (₹)</label>
+                                      <input name="amount" type="number" required placeholder="0.00" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
+                                  </div>
+                                  <div>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Category</label>
+                                      <input name="category" type="text" required placeholder="Dry Goods / Dairy" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
+                                  </div>
+                              </>
+                          )}
 
-      {/* Global Toast for Uploads */}
-      {(uploading || uploadSuccess) && (
-          <div className="fixed bottom-6 right-6 bg-slate-900 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4 animate-fade-in-up z-50">
-              {uploading ? (
-                  <>
-                    <Loader2 className="animate-spin text-emerald-400" size={24} />
-                    <div>
-                        <p className="font-bold">Processing {uploading}...</p>
-                        <p className="text-xs text-slate-400">Parsing data and extracting insights</p>
-                    </div>
-                  </>
-              ) : (
-                  <>
-                    <CheckCircle2 className="text-emerald-400" size={24} />
-                     <div>
-                        <p className="font-bold">Success</p>
-                        <p className="text-xs text-slate-400">{uploadSuccess}</p>
-                    </div>
-                  </>
-              )}
+                          {manualCategory === 'expense' && (
+                              <>
+                                  <div>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Expense Type</label>
+                                      <select name="type" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none">
+                                          <option>Rent</option>
+                                          <option>Utility</option>
+                                          <option>Marketing</option>
+                                          <option>Maintenance</option>
+                                          <option>Other</option>
+                                      </select>
+                                  </div>
+                                  <div>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Amount (₹)</label>
+                                      <input name="amount" type="number" required placeholder="0.00" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
+                                  </div>
+                                  <div>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Note</label>
+                                      <input name="note" type="text" placeholder="Details..." className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
+                                  </div>
+                                  <div className="hidden md:block"></div>
+                              </>
+                          )}
+
+                          {manualCategory === 'manpower' && (
+                              <>
+                                  <div>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Staff Count</label>
+                                      <input name="staff" type="number" required placeholder="0" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
+                                  </div>
+                                  <div>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Total Salaries (₹)</label>
+                                      <input name="salaries" type="number" required placeholder="0.00" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
+                                  </div>
+                                  <div>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Overtime Hours</label>
+                                      <input name="overtime" type="number" placeholder="0" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
+                                  </div>
+                              </>
+                          )}
+
+                          <button type="submit" className="md:col-start-4 w-full py-3.5 bg-slate-950 dark:bg-white text-white dark:text-slate-950 font-black rounded-xl text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:opacity-90 shadow-xl transition-all">
+                              <Save size={16}/> Commit Entry
+                          </button>
+                      </form>
+                  </div>
+
+                  {/* History of manual entries */}
+                  <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex-1">
+                      <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center">
+                          <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Ingress Log: {manualCategory}</h4>
+                          <span className="text-[10px] font-mono text-slate-400">Total Records: {manualCategory === 'sales' ? salesEntries.length : manualCategory === 'purchase' ? purchaseEntries.length : manualCategory === 'expense' ? expenseEntries.length : manpowerEntries.length}</span>
+                      </div>
+                      <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
+                          <table className="w-full text-left text-xs">
+                              <thead className="sticky top-0 bg-white dark:bg-slate-900 border-b text-slate-400 font-bold uppercase tracking-widest text-[9px]">
+                                  <tr>
+                                      <th className="px-6 py-4">Date</th>
+                                      {manualCategory === 'sales' && <><th className="px-6 py-4">Channel</th><th className="px-6 py-4">Revenue</th><th className="px-6 py-4">Orders</th></>}
+                                      {manualCategory === 'purchase' && <><th className="px-6 py-4">Supplier</th><th className="px-6 py-4">Category</th><th className="px-6 py-4">Amount</th></>}
+                                      {manualCategory === 'expense' && <><th className="px-6 py-4">Type</th><th className="px-6 py-4">Amount</th><th className="px-6 py-4">Note</th></>}
+                                      {manualCategory === 'manpower' && <><th className="px-6 py-4">Staff</th><th className="px-6 py-4">Cost</th><th className="px-6 py-4">OT Hours</th></>}
+                                      <th className="px-6 py-4 text-right">Action</th>
+                                  </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
+                                  {manualCategory === 'sales' && salesEntries.map(e => (
+                                      <tr key={e.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                                          <td className="px-6 py-4 text-slate-400">{e.date}</td>
+                                          <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200">{e.channel}</td>
+                                          <td className="px-6 py-4 text-emerald-600 font-black">₹{e.revenue.toLocaleString()}</td>
+                                          <td className="px-6 py-4 text-slate-500">{e.orderCount}</td>
+                                          <td className="px-6 py-4 text-right"><button onClick={() => { if(user){ const updated = salesEntries.filter(i=>i.id!==e.id); setSalesEntries(updated); storageService.saveManualSales(user.id, updated); } }} className="text-slate-400 hover:text-red-500"><Trash2 size={14}/></button></td>
+                                      </tr>
+                                  ))}
+                                  {manualCategory === 'purchase' && purchaseEntries.map(e => (
+                                      <tr key={e.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                                          <td className="px-6 py-4 text-slate-400">{e.date}</td>
+                                          <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200">{e.supplier}</td>
+                                          <td className="px-6 py-4 text-slate-500">{e.category}</td>
+                                          <td className="px-6 py-4 text-blue-600 font-black">₹{e.amount.toLocaleString()}</td>
+                                          <td className="px-6 py-4 text-right"><button onClick={() => { if(user){ const updated = purchaseEntries.filter(i=>i.id!==e.id); setPurchaseEntries(updated); storageService.saveManualPurchases(user.id, updated); } }} className="text-slate-400 hover:text-red-500"><Trash2 size={14}/></button></td>
+                                      </tr>
+                                  ))}
+                                  {manualCategory === 'expense' && expenseEntries.map(e => (
+                                      <tr key={e.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                                          <td className="px-6 py-4 text-slate-400">{e.date}</td>
+                                          <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200">{e.type}</td>
+                                          <td className="px-6 py-4 text-amber-600 font-black">₹{e.amount.toLocaleString()}</td>
+                                          <td className="px-6 py-4 text-slate-500 max-w-[150px] truncate">{e.note}</td>
+                                          <td className="px-6 py-4 text-right"><button onClick={() => { if(user){ const updated = expenseEntries.filter(i=>i.id!==e.id); setExpenseEntries(updated); storageService.saveManualExpenses(user.id, updated); } }} className="text-slate-400 hover:text-red-500"><Trash2 size={14}/></button></td>
+                                      </tr>
+                                  ))}
+                                  {manualCategory === 'manpower' && manpowerEntries.map(e => (
+                                      <tr key={e.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                                          <td className="px-6 py-4 text-slate-400">{e.date}</td>
+                                          <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200">{e.staffCount} HEADS</td>
+                                          <td className="px-6 py-4 text-purple-600 font-black">₹{e.totalSalaries.toLocaleString()}</td>
+                                          <td className="px-6 py-4 text-slate-500">{e.overtimeHours}h</td>
+                                          <td className="px-6 py-4 text-right"><button onClick={() => { if(user){ const updated = manpowerEntries.filter(i=>i.id!==e.id); setManualManpower(updated); storageService.saveManualManpower(user.id, updated); } }} className="text-slate-400 hover:text-red-500"><Trash2 size={14}/></button></td>
+                                      </tr>
+                                  ))}
+                                  {((manualCategory === 'sales' && salesEntries.length === 0) || (manualCategory === 'purchase' && purchaseEntries.length === 0) || (manualCategory === 'expense' && expenseEntries.length === 0) || (manualCategory === 'manpower' && manpowerEntries.length === 0)) && (
+                                      <tr><td colSpan={6} className="px-6 py-20 text-center text-slate-400 uppercase font-black opacity-30 italic">No historical records in stream</td></tr>
+                                  )}
+                              </tbody>
+                          </table>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {activeTab === 'archive' && (
+          <div className="space-y-6 animate-fade-in-up">
+              <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] flex items-center justify-between">
+                  <div className="flex items-center gap-6">
+                      <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-slate-900 shadow-xl"><Archive size={32}/></div>
+                      <div>
+                          <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Serialized Operational Snapshot</h3>
+                          <p className="text-slate-500 text-sm mt-1">Generate a comprehensive JSON/Excel package containing all neural assets and operational history.</p>
+                      </div>
+                  </div>
+                  <button 
+                    onClick={handleExportBundle}
+                    disabled={isExporting}
+                    className="px-10 py-5 bg-white text-slate-950 font-black rounded-2xl uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-2xl flex items-center gap-3 disabled:opacity-50"
+                  >
+                      {isExporting ? <Loader2 className="animate-spin" size={20}/> : <Download size={20}/>}
+                      {isExporting ? 'Packaging...' : 'Begin Serialization'}
+                  </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="glass p-6 rounded-3xl border-slate-800 flex flex-col justify-between group hover:bg-white/5 transition-all cursor-pointer">
+                      <div><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Recipe Models</p><h4 className="text-white font-bold text-lg uppercase tracking-tight">Technical Library</h4></div>
+                      <p className="text-xs text-slate-500 mt-4 font-mono uppercase">ENTRIES: {storageService.getSavedRecipes(user?.id || '').length}</p>
+                  </div>
+                  <div className="glass p-6 rounded-3xl border-slate-800 flex flex-col justify-between group hover:bg-white/5 transition-all cursor-pointer">
+                      <div><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Logic Flow</p><h4 className="text-white font-bold text-lg uppercase tracking-tight">SOP Protocol Base</h4></div>
+                      <p className="text-xs text-slate-500 mt-4 font-mono uppercase">ENTRIES: {storageService.getSavedSOPs(user?.id || '').length}</p>
+                  </div>
+                  <div className="glass p-6 rounded-3xl border-slate-800 flex flex-col justify-between group hover:bg-white/5 transition-all cursor-pointer">
+                      <div><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Neural Vision</p><h4 className="text-white font-bold text-lg uppercase tracking-tight">CCTV Audit History</h4></div>
+                      <p className="text-xs text-slate-500 mt-4 font-mono uppercase">ENTRIES: {storageService.getCCTVHistory(user?.id || '').length}</p>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* API Configuration Modal */}
+      {configModal && (
+          <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-6">
+              <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-[2.5rem] shadow-2xl overflow-hidden relative animate-scale-in">
+                  <div className="p-10">
+                      <div className="flex items-center gap-4 mb-8">
+                          <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-500/20 text-indigo-500 shadow-inner text-xl font-black">
+                              {configModal.icon}
+                          </div>
+                          <div>
+                              <h3 className="text-2xl font-black text-white uppercase tracking-tighter">{configModal.name} Config</h3>
+                              <p className="text-xs font-mono text-slate-500 uppercase tracking-widest">TECHNICAL_HANDSHAKE_NODE</p>
+                          </div>
+                      </div>
+
+                      <form onSubmit={handleSaveConfig} className="space-y-5">
+                          <div>
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-1 block">Store / Merchant ID</label>
+                              <input 
+                                value={currentConfig.storeId} 
+                                onChange={e => setCurrentConfig({...currentConfig, storeId: e.target.value})}
+                                required
+                                className="w-full p-3 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl text-sm outline-none focus:ring-1 focus:ring-indigo-500 font-mono" 
+                                placeholder="ST_XXXX_YY"
+                              />
+                          </div>
+                          <div>
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-1 block">API Key (Bearer Token)</label>
+                              <input 
+                                value={currentConfig.apiKey} 
+                                onChange={e => setCurrentConfig({...currentConfig, apiKey: e.target.value})}
+                                required
+                                type="password"
+                                className="w-full p-3 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl text-sm outline-none focus:ring-1 focus:ring-indigo-500 font-mono" 
+                                placeholder="••••••••••••••••"
+                              />
+                          </div>
+                          <div>
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-1 block">Secret Key</label>
+                              <input 
+                                value={currentConfig.apiSecret} 
+                                onChange={e => setCurrentConfig({...currentConfig, apiSecret: e.target.value})}
+                                required
+                                type="password"
+                                className="w-full p-3 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl text-sm outline-none focus:ring-1 focus:ring-indigo-500 font-mono" 
+                                placeholder="••••••••••••••••"
+                              />
+                          </div>
+
+                          <div className="bg-indigo-500/5 p-4 rounded-xl border border-indigo-500/10 flex gap-3 items-start">
+                              <ShieldCheck size={16} className="text-indigo-500 shrink-0 mt-0.5"/>
+                              <p className="text-[10px] text-slate-400 italic leading-relaxed">System will use these keys to scrape reports directly from {configModal.name}'s secure cloud. No login details required.</p>
+                          </div>
+
+                          <div className="flex gap-3 pt-4">
+                              <button type="button" onClick={() => setConfigModal(null)} className="flex-1 py-3 bg-slate-800 text-white font-bold rounded-xl text-xs uppercase tracking-widest hover:bg-slate-700 transition-all">Cancel</button>
+                              <button type="submit" className="flex-[2] py-3 bg-white text-slate-950 font-black rounded-xl text-xs uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-xl">Authorize Node</button>
+                          </div>
+                      </form>
+                  </div>
+              </div>
           </div>
       )}
     </div>
