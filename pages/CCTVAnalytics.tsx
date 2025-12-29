@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { User, CCTVAnalysisResult, CCTVEvent, SOP, RecipeCard, AppView, BehavioralPattern, OperationalMetrics, HygieneViolation, Task, CameraFeed, CameraProvider, FacilityArea } from '../types';
 import { analyzeStaffMovement, generateChecklistFromAnalysis, generateRevisedSOPFromAnalysis } from '../services/geminiService';
@@ -195,8 +194,16 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
     };
 
     const handleAnalyzeCurrent = async () => {
+        // AI Key Requirement Check for Multimodal Tasks
+        if (typeof (window as any).aistudio !== 'undefined') {
+            const hasKey = await (window as any).aistudio.hasSelectedApiKey();
+            if (!hasKey) {
+                await (window as any).aistudio.openSelectKey();
+                // Guideline: Assume success and proceed to call
+            }
+        }
+
         const activeVid = isLiveMode ? liveVideoRef.current : videoRef.current;
-        const targetId = isLiveMode ? 'local' : selectedVideoId;
         const targetName = isLiveMode ? 'Local Feed' : (selectedVideo?.name || 'Network Stream');
 
         if (!activeVid || isAnalyzing) return;
@@ -230,15 +237,18 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
                 setIsAnalyzing(false);
                 setAnalysisProgress(0);
                 if (isLiveMode) {
-                    // For live mode, we store result locally in a temporary state if we want to show it immediately
-                    // For now, we rely on the report tab showing the "last" analysis for this session
                     setVideos(prev => prev.map(v => v.id === selectedVideoId ? {...v, analysis: result} : v));
                 }
             }, 1000);
         } catch (err: any) {
             console.error("Analysis Error:", err);
             setIsAnalyzing(false);
-            alert("Audit failed: " + err.message);
+            if (err.message?.includes("Requested entity was not found")) {
+                alert("Auth Session Expired. Resetting Gateway.");
+                (window as any).aistudio?.openSelectKey();
+            } else {
+                alert("Audit failed: " + err.message);
+            }
         }
     };
 

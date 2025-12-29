@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { SYSTEM_INSTRUCTION, CCTV_SYSTEM_PROMPT, UNIFIED_SYSTEM_PROMPT, MENU_ENGINEERING_PROMPT, STRATEGY_PROMPT } from "../constants";
 import { RecipeCard, SOP, StrategyReport, UnifiedSchema, CCTVAnalysisResult, User, MenuGenerationRequest, MenuItem, InventoryItem, KitchenDesign, MenuStructure } from "../types";
@@ -6,7 +5,8 @@ import { RecipeCard, SOP, StrategyReport, UnifiedSchema, CCTVAnalysisResult, Use
 // Helper to create AI client with current API key
 const createAIClient = () => {
     const key = process.env.API_KEY;
-    return key ? new GoogleGenAI({ apiKey: key }) : null;
+    if (!key) return null;
+    return new GoogleGenAI({ apiKey: key });
 };
 
 export const hasValidApiKey = (): boolean => !!process.env.API_KEY;
@@ -29,17 +29,17 @@ export const analyzeStaffMovement = async (
     frames: string[] = [] 
 ): Promise<CCTVAnalysisResult> => {
     const ai = createAIClient();
-    if (!ai) throw new Error("AI engine unavailable");
+    if (!ai) throw new Error("AI engine initialization failed. Please ensure a valid API key is selected via the System Gateway.");
 
     const contentParts: any[] = [{ text: `${CCTV_SYSTEM_PROMPT}\nFootage: ${desc}\nZones: ${zones.join(', ')}` }];
     frames.forEach((f) => contentParts.push({ inlineData: { mimeType: 'image/jpeg', data: f.split(',')[1] || f } }));
 
     const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-3-flash-preview',
         contents: { parts: contentParts },
         config: { 
             responseMimeType: "application/json", 
-            thinkingConfig: { thinkingBudget: 4000 } 
+            thinkingConfig: { thinkingBudget: 0 } // Disable thinking for faster vision audit turnaround
         }
     });
     
@@ -47,7 +47,6 @@ export const analyzeStaffMovement = async (
 };
 
 /**
- * Fix: Added missing export generateChecklistFromAnalysis
  * Generates a task checklist based on CCTV analysis findings
  */
 export const generateChecklistFromAnalysis = async (analysis: CCTVAnalysisResult): Promise<string[]> => {
@@ -68,7 +67,6 @@ export const generateChecklistFromAnalysis = async (analysis: CCTVAnalysisResult
 };
 
 /**
- * Fix: Added missing export generateRevisedSOPFromAnalysis
  * Generates a revised SOP based on deviations observed in CCTV footage
  */
 export const generateRevisedSOPFromAnalysis = async (analysis: CCTVAnalysisResult, currentSop?: SOP): Promise<SOP> => {
@@ -123,7 +121,7 @@ export const generateRecipeCard = async (
     persona?: string
 ): Promise<RecipeCard> => {
     const ai = createAIClient();
-    if (!ai) throw new Error("AI Engine offline");
+    if (!ai) throw new Error("AI Engine offline. Please configure your access key.");
     
     const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
@@ -262,7 +260,7 @@ export const analyzeUnifiedRestaurantData = async (data: any): Promise<UnifiedSc
 
 export const generateStrategy = async (u: User, q: string, c: string): Promise<StrategyReport> => {
     const ai = createAIClient();
-    if (!ai) throw new Error("Consultant offline");
+    if (!ai) throw new Error("Consultant offline. Please check your system configuration.");
     
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -324,7 +322,7 @@ export const generateStrategy = async (u: User, q: string, c: string): Promise<S
 
 export const generateMarketingImage = async (prompt: string, ar: string): Promise<string> => {
     const ai = createAIClient();
-    if (!ai) throw new Error("Image engine unavailable");
+    if (!ai) throw new Error("Image engine unavailable. Select a system key to proceed.");
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: { parts: [{ text: prompt }] },
@@ -338,7 +336,7 @@ export const generateMarketingImage = async (prompt: string, ar: string): Promis
 
 export const generateMarketingVideo = async (imgs: string[], prompt: string, ar: string): Promise<string> => {
     const ai = createAIClient();
-    if (!ai) throw new Error("Video engine unavailable");
+    if (!ai) throw new Error("Video engine unavailable. Please select a valid GCP API key.");
     let operation = await ai.models.generateVideos({
         model: 'veo-3.1-fast-generate-preview',
         prompt,
@@ -416,7 +414,7 @@ export const generateMenu = async (req: MenuGenerationRequest): Promise<string> 
 
 export const generateKitchenDesign = async (title: string, l: number, w: number, cuisine: string, reqs: string): Promise<KitchenDesign> => {
     const ai = createAIClient();
-    if (!ai) throw new Error("AI Offline");
+    if (!ai) throw new Error("Architectural Node Offline. Key missing.");
     const res = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
         contents: `Architectural Kitchen Layout Task. Restaurant: ${title}. Dimensions: ${l}x${w}ft. Cuisine: ${cuisine}. Requirements: ${reqs}. Use percentages for x, y, w, h.`,
@@ -475,7 +473,7 @@ export const generateKitchenDesign = async (title: string, l: number, w: number,
 
 export const generateKitchenWorkflow = async (desc: string): Promise<string> => {
     const ai = createAIClient();
-    if (!ai) return "Offline";
+    if (!ai) return "AI Engine Offline";
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `Architectural Kitchen Workflow Optimization. Pain Points: ${desc}. Return Markdown report.`,
@@ -489,7 +487,7 @@ export const generatePurchaseOrder = async (s: string, i: any[]): Promise<any> =
 
 export const getChatResponse = async (h: any[], i: string): Promise<string> => {
     const ai = createAIClient();
-    if (!ai) return "Offline";
+    if (!ai) return "Operational Node Offline. Please check your system key.";
     const res = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: i });
     return res.text || '';
 };
@@ -507,7 +505,7 @@ export const analyzeMenuEngineering = async (i: any[]): Promise<any[]> => {
 
 export const verifyLocationWithMaps = async (location: string): Promise<string> => {
     const ai = createAIClient();
-    if (!ai) return "Service offline";
+    if (!ai) return "Maps Node Offline";
     const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: `Verify if "${location}" is a valid restaurant location. Provide a short description.`,
