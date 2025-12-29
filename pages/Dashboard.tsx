@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { StatCard } from '../components/StatCard';
-import { User, AppView, UserRole, RecipeCard, Task, UnifiedSchema } from '../types';
+import { User, AppView, UserRole, RecipeCard, Task, UnifiedSchema, CCTVAnalysisResult } from '../types';
 import { storageService, storageEvents, CCTVHistoryItem } from '../services/storageService';
 import { analyzeUnifiedRestaurantData } from '../services/geminiService';
 import { trackingService } from '../services/trackingService';
@@ -11,8 +11,7 @@ import {
     Zap, ChefHat, Star, Check, ListChecks, Plus, Trash2, ArrowUp, ArrowDown, 
     Timer, ScanLine, Download, Loader2, IndianRupee, MessageSquare, Heart, 
     UserPlus, Clock, Search, Wallet, HandCoins, ShieldAlert, Biohazard, Droplets, Flame, Cpu, Terminal,
-    // Add missing 'Eye' import
-    Eye
+    Eye, History, ChevronRight, CheckCircle2
 } from 'lucide-react';
 import { ResponsiveContainer, ComposedChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
@@ -50,20 +49,38 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
     const [unifiedData, setUnifiedData] = useState<UnifiedSchema | null>(null);
     const [loadingPulse, setLoadingPulse] = useState(false);
     const [tasks, setTasks] = useState<Task[]>([]);
+    const [cctvHistory, setCctvHistory] = useState<CCTVHistoryItem[]>([]);
 
     useEffect(() => {
         const load = async () => {
             setLoadingPulse(true);
-            setTasks(storageService.getTasks(user.id) || []);
+            const savedTasks = storageService.getTasks(user.id) || [];
+            const history = storageService.getCCTVHistory(user.id) || [];
+            setTasks(savedTasks);
+            setCctvHistory(history);
+            
             try {
+                // Pass some context to get a more relevant summary
                 const data = await analyzeUnifiedRestaurantData({
                     outlet: user.restaurantName,
-                    loc: user.location
+                    loc: user.location,
+                    recent_audits: history.slice(0, 3).map(h => ({
+                        efficiency: h.performance_scores.kitchen_efficiency,
+                        hygiene: h.performance_scores.hygiene_safety_score,
+                        violations: h.hygiene_audit?.violations.length || 0
+                    }))
                 });
                 setUnifiedData(data);
             } catch (e) { console.error(e); } finally { setLoadingPulse(false); }
         };
         load();
+
+        const handleDataUpdate = () => {
+            setTasks(storageService.getTasks(user.id) || []);
+            setCctvHistory(storageService.getCCTVHistory(user.id) || []);
+        };
+        window.addEventListener(storageEvents.DATA_UPDATED, handleDataUpdate);
+        return () => window.removeEventListener(storageEvents.DATA_UPDATED, handleDataUpdate);
     }, [user.id]);
 
     const handleAddTask = (e: React.FormEvent) => {
@@ -77,9 +94,35 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
         (e.target as any).reset();
     };
 
+    // --- Neural Trend Analytics ---
+    const trends = useMemo(() => {
+        if (cctvHistory.length < 2) return null;
+        const latest = cctvHistory[0];
+        const previous = cctvHistory[1];
+
+        const calc = (cur: number = 0, prev: number = 0) => {
+            const diff = cur - prev;
+            return {
+                val: Math.abs(diff).toFixed(1),
+                up: diff >= 0,
+                impact: diff > 0 ? 'improvement' : diff < 0 ? 'regression' : 'neutral'
+            };
+        };
+
+        return {
+            efficiency: calc(latest.performance_scores.kitchen_efficiency, previous.performance_scores.kitchen_efficiency),
+            hygiene: calc(latest.performance_scores.hygiene_safety_score, previous.performance_scores.hygiene_safety_score),
+            integrity: calc(latest.performance_scores.financial_integrity_score, previous.performance_scores.financial_integrity_score),
+            latestArea: latest.detected_area,
+            timestamp: new Date(latest.timestamp).toLocaleTimeString()
+        };
+    }, [cctvHistory]);
+
+    const latestAudit = cctvHistory[0];
+
     return (
         <div className="space-y-8 animate-fade-in">
-            <div className="flex justify-between items-end">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-white uppercase tracking-tighter">Command Center</h1>
                     <p className="text-xs font-mono text-slate-500 uppercase tracking-widest mt-1">// LIVE_NEURAL_OPERATIONS // NODE_04</p>
@@ -88,7 +131,6 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                     <div className="glass px-4 py-2 rounded-xl flex items-center gap-3 border-slate-800">
                         <div className="relative flex h-2 w-2">
                           <span className="neural-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400"></span>
-                          {/* Fix: Corrected syntax error in className and closing tag */}
                           <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                         </div>
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vision Online</span>
@@ -105,23 +147,42 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                              <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Financial Pulse</h4>
                              <div className="flex justify-between items-end">
                                 <div>
-                                    <p className="text-3xl font-black text-white">₹14,250</p>
-                                    <p className="text-[10px] font-mono text-emerald-500 mt-1">ESTIMATED_INFLOW // 99% CONF</p>
+                                    <p className="text-3xl font-black text-white">
+                                        ₹{latestAudit?.cash_movement?.total_received?.toLocaleString() || '14,250'}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <p className="text-[10px] font-mono text-emerald-500 uppercase">ESTIMATED_INFLOW</p>
+                                        {trends?.integrity && (
+                                            <span className={`flex items-center text-[9px] font-bold ${trends.integrity.up ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                {trends.integrity.up ? <ArrowUp size={10}/> : <ArrowDown size={10}/>} {trends.integrity.val}%
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-xs font-bold text-red-500">-₹1,200</p>
+                                    <p className="text-xs font-bold text-red-500">
+                                        -₹{latestAudit?.cash_movement?.total_withdrawals?.toLocaleString() || '1,200'}
+                                    </p>
                                     <p className="text-[9px] text-slate-600 uppercase font-bold tracking-widest">Withdrawals</p>
                                 </div>
                              </div>
                         </div>
                         <div className="glass p-6 rounded-3xl border-slate-800 relative overflow-hidden group">
-                             {/* Corrected: 'Eye' is now properly imported */}
                              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Eye size={60}/></div>
-                             <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Compliance Score</h4>
+                             <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Efficiency Score</h4>
                              <div className="flex justify-between items-end">
                                 <div>
-                                    <p className="text-3xl font-black text-white">96.4%</p>
-                                    <p className="text-[10px] font-mono text-indigo-400 mt-1">SOP_ADHERENCE // TARGET 98%</p>
+                                    <p className="text-3xl font-black text-white">
+                                        {latestAudit?.performance_scores.kitchen_efficiency || '96.4'}%
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <p className="text-[10px] font-mono text-indigo-400 uppercase">AUDIT_STRENGTH</p>
+                                        {trends?.efficiency && (
+                                            <span className={`flex items-center text-[9px] font-bold ${trends.efficiency.up ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                {trends.efficiency.up ? <ArrowUp size={10}/> : <ArrowDown size={10}/>} {trends.efficiency.val}%
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                                 <TrendingUp size={24} className="text-emerald-500" />
                              </div>
@@ -131,10 +192,14 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                              <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Hygiene Status</h4>
                              <div className="flex justify-between items-end">
                                 <div>
-                                    <p className="text-3xl font-black text-emerald-500 uppercase tracking-tighter">Secure</p>
-                                    <p className="text-[10px] font-mono text-slate-600 mt-1">0_VIOLATIONS_DETECTED</p>
+                                    <p className={`text-3xl font-black uppercase tracking-tighter ${(latestAudit?.hygiene_audit?.violations.length || 0) > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                                        {(latestAudit?.hygiene_audit?.violations.length || 0) > 0 ? 'At Risk' : 'Secure'}
+                                    </p>
+                                    <p className="text-[10px] font-mono text-slate-600 mt-1 uppercase">
+                                        {latestAudit?.hygiene_audit?.violations.length || 0}_VIOLATIONS_DETECTED
+                                    </p>
                                 </div>
-                                <ShieldCheck size={24} className="text-emerald-500" />
+                                <ShieldCheck size={24} className={(latestAudit?.hygiene_audit?.violations.length || 0) > 0 ? 'text-amber-500' : 'text-emerald-500'} />
                              </div>
                         </div>
                     </div>
@@ -161,11 +226,41 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                                             <span className="text-emerald-500 font-bold tracking-widest text-[9px] block mb-2 uppercase">AI_CONSULTANT_CORE</span>
                                             "{unifiedData?.summary || 'Initializing real-time operational analysis module. Awaiting next telemetry sync from CCTV nodes.'}"
                                         </div>
+
+                                        {trends && (
+                                            <div className="space-y-4 animate-fade-in">
+                                                <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2">
+                                                    <ScanLine size={12}/> Neural Drift Insights (vs Previous Session)
+                                                </p>
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    {trends.efficiency.impact !== 'neutral' && (
+                                                        <div className={`p-3 rounded-xl border flex items-center justify-between ${trends.efficiency.up ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                                                            <div className="flex items-center gap-2">
+                                                                <Zap size={14} className={trends.efficiency.up ? 'text-emerald-400' : 'text-red-400'}/>
+                                                                <span className="text-[10px] text-slate-300 uppercase">Workflow Velocity</span>
+                                                            </div>
+                                                            <span className={`font-bold ${trends.efficiency.up ? 'text-emerald-400' : 'text-red-400'}`}>{trends.efficiency.up ? 'IMPROVED' : 'DRIFTED'}</span>
+                                                        </div>
+                                                    )}
+                                                    {trends.hygiene.impact !== 'neutral' && (
+                                                        <div className={`p-3 rounded-xl border flex items-center justify-between ${trends.hygiene.up ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                                                            <div className="flex items-center gap-2">
+                                                                <ShieldCheck size={14} className={trends.hygiene.up ? 'text-emerald-400' : 'text-red-400'}/>
+                                                                <span className="text-[10px] text-slate-300 uppercase">Compliance Hygiene</span>
+                                                            </div>
+                                                            <span className={`font-bold ${trends.hygiene.up ? 'text-emerald-400' : 'text-red-400'}`}>{trends.hygiene.up ? 'STRENGTHENED' : 'WARNING'}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <div className="space-y-2">
-                                            <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Active Data Streams</p>
-                                            <div className="flex gap-2">
+                                            <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Data Stream Matrix</p>
+                                            <div className="flex flex-wrap gap-2">
                                                 <span className="px-2 py-1 bg-white/5 border border-slate-800 rounded text-[9px] text-white">POS_FEED</span>
                                                 <span className="px-2 py-1 bg-white/5 border border-slate-800 rounded text-[9px] text-white">CAM_01_RGB</span>
+                                                <span className="px-2 py-1 bg-white/5 border border-slate-800 rounded text-[9px] text-white">VISION_AUDIT_LOG</span>
                                                 <span className="px-2 py-1 bg-white/5 border border-slate-800 rounded text-[9px] text-white">INV_DELTA</span>
                                             </div>
                                         </div>
@@ -182,25 +277,70 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                                 <span className="text-[10px] font-mono text-slate-500">TASKS: {tasks.length}</span>
                             </div>
                             <form onSubmit={handleAddTask} className="flex gap-3 mb-6">
-                                <input name="task" type="text" placeholder="Add protocol action..." className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs font-mono focus:border-emerald-500 outline-none transition-all"/>
+                                <input name="task" type="text" placeholder="Add protocol action..." className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs font-mono focus:border-emerald-500 outline-none transition-all text-white"/>
                                 <button type="submit" className="p-3 bg-white text-slate-950 rounded-xl hover:bg-emerald-400 transition-colors"><Plus size={20}/></button>
                             </form>
                             <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-1">
-                                {tasks.map(t => <TaskItem key={t.id} task={t} onToggle={(id) => {
-                                    const updated = tasks.map(x => x.id === id ? {...x, completed: !x.completed} : x);
-                                    setTasks(updated);
-                                    storageService.saveTasks(user.id, updated);
-                                }} onDelete={(id) => {
-                                    const updated = tasks.filter(x => x.id !== id);
-                                    setTasks(updated);
-                                    storageService.saveTasks(user.id, updated);
-                                }} />)}
+                                {tasks.length === 0 ? (
+                                    <div className="h-full flex flex-col items-center justify-center opacity-20 text-center px-6">
+                                        <CheckCircle2 size={48} className="mb-4" />
+                                        <p className="text-[10px] font-black uppercase tracking-widest">Protocol Clear</p>
+                                    </div>
+                                ) : (
+                                    tasks.map(t => <TaskItem key={t.id} task={t} onToggle={(id) => {
+                                        const updated = tasks.map(x => x.id === id ? {...x, completed: !x.completed} : x);
+                                        setTasks(updated);
+                                        storageService.saveTasks(user.id, updated);
+                                    }} onDelete={(id) => {
+                                        const updated = tasks.filter(x => x.id !== id);
+                                        setTasks(updated);
+                                        storageService.saveTasks(user.id, updated);
+                                    }} />)
+                                )}
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <div className="space-y-6">
+                    {/* Latest Behavioral Deviation Card */}
+                    {latestAudit?.hygiene_audit?.violations.length ? (
+                        <div className="glass p-8 rounded-[2.5rem] border-red-500/30 bg-red-500/5 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><AlertTriangle size={80}/></div>
+                            <h3 className="text-sm font-black text-red-500 mb-4 uppercase tracking-widest flex items-center gap-2">
+                                <ShieldAlert size={16}/> Critical Deviation
+                            </h3>
+                            <div className="p-4 bg-black/40 rounded-2xl border border-red-500/20 mb-6">
+                                <p className="text-[10px] font-black text-white uppercase mb-1">{latestAudit.hygiene_audit.violations[0].type.replace('_', ' ')}</p>
+                                <p className="text-[11px] text-slate-400 leading-relaxed italic">
+                                    "{latestAudit.hygiene_audit.violations[0].description}"
+                                </p>
+                            </div>
+                            <button 
+                                onClick={() => onChangeView(AppView.CCTV_ANALYTICS)}
+                                className="w-full py-4 bg-red-600 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-red-500 transition-all shadow-xl shadow-red-900/20"
+                            >
+                                Resolve in Vision Hub
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="glass p-8 rounded-[2.5rem] border-emerald-500/30 bg-emerald-500/5 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><ShieldCheck size={80}/></div>
+                            <h3 className="text-sm font-black text-emerald-400 mb-4 uppercase tracking-widest flex items-center gap-2">
+                                <ShieldCheck size={16}/> Behavior Guard
+                            </h3>
+                            <p className="text-xs text-slate-400 leading-relaxed mb-6 font-medium">
+                                Neural nodes report 100% SOP adherence across active stations. No behavioral drift detected in latest audit cycles.
+                            </p>
+                            <button 
+                                onClick={() => onChangeView(AppView.CCTV_ANALYTICS)}
+                                className="w-full py-4 bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-emerald-600/30 transition-all"
+                            >
+                                Audit Stream Archive
+                            </button>
+                        </div>
+                    )}
+
                     <div className="glass p-8 rounded-[2.5rem] border-indigo-500/30 bg-indigo-500/5 relative overflow-hidden group">
                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Brain size={100}/></div>
                         <h3 className="text-lg font-black text-white mb-4 uppercase tracking-tighter flex items-center gap-2"><Sparkles className="text-emerald-400"/> Strategy Engine</h3>
@@ -216,22 +356,29 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                     </div>
                     
                     <div className="glass p-8 rounded-[2.5rem] border-slate-800">
-                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6">System Health</h4>
-                        <div className="space-y-6">
-                            <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-xl bg-slate-900 flex items-center justify-center border border-slate-800"><Server size={14} className="text-slate-400"/></div>
-                                    <span className="text-[11px] font-bold text-slate-300">Edge Server</span>
-                                </div>
-                                <span className="text-[10px] font-mono text-emerald-500">ACTIVE</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-xl bg-slate-900 flex items-center justify-center border border-slate-800"><Cpu size={14} className="text-slate-400"/></div>
-                                    <span className="text-[11px] font-bold text-slate-300">Neural Load</span>
-                                </div>
-                                <span className="text-[10px] font-mono text-indigo-400">12.4%</span>
-                            </div>
+                        <div className="flex justify-between items-center mb-6">
+                            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Audit Archive</h4>
+                            <History size={14} className="text-slate-600"/>
+                        </div>
+                        <div className="space-y-4">
+                            {cctvHistory.length === 0 ? (
+                                <p className="text-[10px] text-slate-600 italic">No historical neural telemetry available.</p>
+                            ) : (
+                                cctvHistory.slice(0, 3).map((item, i) => (
+                                    <div key={i} className="flex justify-between items-center group cursor-pointer" onClick={() => onChangeView(AppView.CCTV_ANALYTICS)}>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center border border-slate-800 group-hover:border-emerald-500 transition-colors">
+                                                <ScanLine size={14} className="text-slate-400 group-hover:text-emerald-400"/>
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] font-bold text-slate-300 block leading-tight">{item.detected_area} Audit</span>
+                                                <span className="text-[8px] font-mono text-slate-600 uppercase">{new Date(item.timestamp).toLocaleDateString()}</span>
+                                            </div>
+                                        </div>
+                                        <ChevronRight size={14} className="text-slate-700 group-hover:text-white transition-colors"/>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </div>
                 </div>
