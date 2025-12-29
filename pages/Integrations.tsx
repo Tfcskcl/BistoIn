@@ -6,7 +6,9 @@ import {
     ExternalLink, Save, Receipt, Instagram, Facebook, MapPin, Megaphone, 
     ImageIcon, Link2, LogOut, Globe, UserIcon, BarChart3, FileJson, 
     Archive, Database, ShieldAlert, Cpu, IndianRupee, History, Trash2, 
-    Calendar, Plus, Users, ShoppingBag, Wallet, Network, Settings2, Sparkles, Activity
+    Calendar, Plus, Users, ShoppingBag, Wallet, Network, Settings2, Sparkles, Activity, Zap,
+    // Add RefreshCw import
+    RefreshCw
 } from 'lucide-react';
 import { storageService, storageEvents } from '../services/storageService';
 import { ManualSalesEntry, ManualPurchaseEntry, ManualExpenseEntry, ManualManpowerEntry, User, IntegrationConfig } from '../types';
@@ -52,11 +54,20 @@ export const Integrations: React.FC = () => {
   useEffect(() => {
       const checkGateway = async () => {
           if ((window as any).aistudio) {
-              const active = await (window as any).aistudio.hasSelectedApiKey();
-              setIsGatewayActive(active);
+              try {
+                  const active = await (window as any).aistudio.hasSelectedApiKey();
+                  setIsGatewayActive(active);
+              } catch (e) {
+                  console.error("Gateway probe failed", e);
+              }
           }
       };
+
+      // Initial check
       checkGateway();
+
+      // Poll for status changes (since selection happens in an external iframe/dialog)
+      const interval = setInterval(checkGateway, 2000);
 
       if (user) {
           const links = storageService.getPOSConnections(user.id);
@@ -72,16 +83,26 @@ export const Integrations: React.FC = () => {
           setExpenseEntries(storageService.getManualExpenses(user.id));
           setManualManpower(storageService.getManualManpower(user.id));
       }
+
+      return () => clearInterval(interval);
   }, [user]);
 
   const handleNeuralHandshake = async () => {
-      setIsVerifying(true);
-      if ((window as any).aistudio) {
-          await (window as any).aistudio.openSelectKey();
-          // Assume success after selection as per guidelines
-          setIsGatewayActive(true);
+      if (!(window as any).aistudio) {
+          alert("System Gateway Not Found. Please ensure you are running in an AI-capable environment.");
+          return;
       }
-      setTimeout(() => setIsVerifying(false), 1000);
+      
+      setIsVerifying(true);
+      try {
+          await (window as any).aistudio.openSelectKey();
+          // Per guidelines, proceed immediately assuming success to mitigate race conditions
+          setIsGatewayActive(true);
+      } catch (err) {
+          console.error("Handshake failed", err);
+      } finally {
+          setTimeout(() => setIsVerifying(false), 1500);
+      }
   };
 
   const handleOpenConfig = (item: IntegrationItem) => {
@@ -282,21 +303,36 @@ export const Integrations: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div 
-                        onClick={handleNeuralHandshake}
-                        className={`glass p-8 rounded-[2.5rem] border-slate-200 dark:border-slate-800 flex items-center gap-6 group cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-all ${isGatewayActive ? 'border-emerald-500/30 bg-emerald-500/5' : ''}`}
+                        className={`glass p-8 rounded-[2.5rem] border-slate-200 dark:border-slate-800 flex flex-col gap-6 relative overflow-hidden transition-all ${isGatewayActive ? 'border-emerald-500/30 bg-emerald-500/5' : 'bg-white dark:bg-slate-950'}`}
                     >
-                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border group-hover:scale-110 transition-transform ${isGatewayActive ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-500'}`}>
-                            {isVerifying ? <Loader2 size={24} className="animate-spin"/> : <Key size={24} />}
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">API Gateway</h4>
-                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${isGatewayActive ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500'}`}>
-                                    {isGatewayActive ? 'ACTIVE' : 'STANDBY'}
-                                </span>
+                        <div className="flex items-center gap-6">
+                            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border transition-transform ${isGatewayActive ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400'}`}>
+                                {isVerifying ? <Loader2 size={24} className="animate-spin"/> : <Key size={24} />}
                             </div>
-                            <p className="text-[10px] text-slate-500 mt-1 uppercase font-mono tracking-widest">
-                                {isGatewayActive ? 'NEURAL_TUNNEL_ESTABLISHED' : 'TRIGGER_SYSTEM_HANDSHAKE'}
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">API Gateway</h4>
+                                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${isGatewayActive ? 'bg-emerald-500 text-slate-950 animate-pulse' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                                        {isGatewayActive ? 'ACTIVE' : 'STANDBY'}
+                                    </span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-1 uppercase font-mono tracking-widest leading-relaxed">
+                                    {isGatewayActive ? 'NEURAL_TUNNEL_ESTABLISHED' : 'SYSTEM_HANDSHAKE_REQUIRED'}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div className="pt-2">
+                            <button 
+                                onClick={handleNeuralHandshake}
+                                disabled={isVerifying}
+                                className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl ${isGatewayActive ? 'bg-slate-950 text-white hover:bg-black' : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-indigo-500/20'}`}
+                            >
+                                {isVerifying ? <Loader2 size={14} className="animate-spin"/> : isGatewayActive ? <RefreshCw size={14}/> : <Zap size={14}/>}
+                                {isGatewayActive ? 'Re-verify Neural Link' : 'Initiate Handshake'}
+                            </button>
+                            <p className="text-[9px] text-slate-400 mt-3 italic text-center px-4 leading-relaxed">
+                                Required for multi-modal Vision AI and cinematic video rendering.
                             </p>
                         </div>
                     </div>
