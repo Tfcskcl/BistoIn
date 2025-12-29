@@ -35,7 +35,7 @@ const getAI = () => {
                       String(key).length < 8;
 
     if (isInvalid) {
-        throw new Error("NEURAL_GATEWAY_STANDBY");
+        throw new Error("NEURAL_GATEWAY_STANDBY: System requires a valid API Key. Please establish a link via Nexus Control.");
     }
     
     return new GoogleGenAI({ apiKey: String(key).trim() });
@@ -71,8 +71,9 @@ export const analyzeStaffMovement = async (
     const contentParts: any[] = [{ text: `${CCTV_SYSTEM_PROMPT}\nFootage: ${desc}\nZones: ${zones.join(', ')}` }];
     frames.forEach((f) => contentParts.push({ inlineData: { mimeType: 'image/jpeg', data: f.split(',')[1] || f } }));
 
+    // Vision-heavy task uses Pro for higher fidelity
     const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3-pro-preview',
         contents: { parts: contentParts },
         config: { 
             responseMimeType: "application/json", 
@@ -277,18 +278,29 @@ export const generateSOP = async (topic: string): Promise<SOP> => {
 export const analyzeUnifiedRestaurantData = async (data: any): Promise<UnifiedSchema> => {
     const ai = getAI();
     const res = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3-pro-preview',
         contents: `${UNIFIED_SYSTEM_PROMPT}\nData: ${JSON.stringify(data)}`,
-        config: { responseMimeType: 'application/json' }
+        config: { 
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    summary: { type: Type.STRING },
+                    health_score: { type: Type.NUMBER },
+                    recommendations: { type: Type.ARRAY, items: { type: Type.STRING } }
+                },
+                required: ['summary', 'health_score', 'recommendations']
+            }
+        }
     });
-    return cleanAndParseJSON(res.text || '{}');
+    return cleanAndParseJSON<UnifiedSchema>(res.text || '{}');
 };
 
 export const generateStrategy = async (u: User, q: string, c: string): Promise<StrategyReport> => {
     const ai = getAI();
     
     const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3-pro-preview',
         contents: `Business Strategy for ${u.restaurantName} (Cuisine: ${u.cuisineType}, Location: ${u.location}). Goal: ${q}. Historical Data: ${c}`,
         config: { 
             systemInstruction: STRATEGY_PROMPT,
@@ -391,7 +403,7 @@ export const generateMenu = async (req: MenuGenerationRequest): Promise<string> 
     3. Include appetizing descriptions and pairing suggestions.`;
 
     const res = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3-pro-preview',
         contents: prompt,
         config: { 
             responseMimeType: 'application/json',

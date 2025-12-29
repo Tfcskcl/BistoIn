@@ -1,6 +1,7 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { User, CCTVAnalysisResult, CCTVEvent, SOP, RecipeCard, AppView, BehavioralPattern, OperationalMetrics, HygieneViolation, Task, CameraFeed, CameraProvider, FacilityArea } from '../types';
-import { analyzeStaffMovement, generateChecklistFromAnalysis, generateRevisedSOPFromAnalysis } from '../services/geminiService';
+import { analyzeStaffMovement, generateChecklistFromAnalysis, generateRevisedSOPFromAnalysis, openNeuralGateway } from '../services/geminiService';
 import { storageService, storageEvents, dispatchDataUpdatedEvent } from '../services/storageService';
 import { 
     Video, Activity, AlertTriangle, PlayCircle, 
@@ -194,15 +195,6 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
     };
 
     const handleAnalyzeCurrent = async () => {
-        // AI Key Requirement Check for Multimodal Tasks
-        if (typeof (window as any).aistudio !== 'undefined') {
-            const hasKey = await (window as any).aistudio.hasSelectedApiKey();
-            if (!hasKey) {
-                await (window as any).aistudio.openSelectKey();
-                // Guideline: Assume success and proceed to call
-            }
-        }
-
         const activeVid = isLiveMode ? liveVideoRef.current : videoRef.current;
         const targetName = isLiveMode ? 'Local Feed' : (selectedVideo?.name || 'Network Stream');
 
@@ -243,9 +235,12 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
         } catch (err: any) {
             console.error("Analysis Error:", err);
             setIsAnalyzing(false);
-            if (err.message?.includes("Requested entity was not found")) {
+            if (err.message?.includes("NEURAL_GATEWAY_STANDBY")) {
+                alert("Audit failed: System requires a valid API Key. Please establish a link via Nexus Control.");
+                onChangeView(AppView.INTEGRATIONS);
+            } else if (err.message?.includes("Requested entity was not found")) {
                 alert("Auth Session Expired. Resetting Gateway.");
-                (window as any).aistudio?.openSelectKey();
+                await openNeuralGateway();
             } else {
                 alert("Audit failed: " + err.message);
             }
@@ -451,7 +446,7 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
                                 </div>
                             ) : (
                                 analysis.hygiene_audit?.violations.map((v, i) => (
-                                    <div key={i} className={`p-4 rounded-2xl border-l-4 ${v.severity === 'high' ? 'border-l-red-500 bg-red-500/5' : 'border-l-amber-500 bg-amber-500/5'} border-slate-100 dark:border-slate-800`}>
+                                    <div key={i} className={`p-4 rounded-2xl border-l-4 ${v.severity === 'high' ? 'border-l-red-500 bg-red-50/5' : 'border-l-amber-500 bg-amber-500/5'} border-slate-100 dark:border-slate-800`}>
                                         <div className="flex justify-between items-start mb-1">
                                             <h5 className="text-[10px] font-black dark:text-white uppercase">{v.type.replace('_', ' ')}</h5>
                                             <span className={`text-[8px] font-black uppercase px-1.5 rounded ${v.severity === 'high' ? 'bg-red-500 text-white' : 'bg-amber-500 text-black'}`}>{v.severity}</span>
