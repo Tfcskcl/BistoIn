@@ -7,11 +7,12 @@ import {
     ImageIcon, Link2, LogOut, Globe, UserIcon, BarChart3, FileJson, 
     Archive, Database, ShieldAlert, Cpu, IndianRupee, History, Trash2, 
     Calendar, Plus, Users, ShoppingBag, Wallet, Network, Settings2, Sparkles, Activity, Zap,
-    RefreshCw
+    RefreshCw, Info, ExternalLink as LinkIcon
 } from 'lucide-react';
 import { storageService, storageEvents } from '../services/storageService';
 import { ManualSalesEntry, ManualPurchaseEntry, ManualExpenseEntry, ManualManpowerEntry, User, IntegrationConfig } from '../types';
 import { authService } from '../services/authService';
+import { hasValidApiKey } from '../services/geminiService';
 
 interface IntegrationItem {
   id: string;
@@ -37,6 +38,7 @@ export const Integrations: React.FC = () => {
   // Neural Gateway Status
   const [isGatewayActive, setIsGatewayActive] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [hasStudioKey, setHasStudioKey] = useState(false);
 
   // Integration Config State
   const [configModal, setConfigModal] = useState<IntegrationItem | null>(null);
@@ -52,19 +54,21 @@ export const Integrations: React.FC = () => {
 
   useEffect(() => {
       const checkGateway = async () => {
-          // Aistudio key check
-          let hasStudioKey = false;
+          let selected = false;
           if ((window as any).aistudio) {
               try {
-                  hasStudioKey = await (window as any).aistudio.hasSelectedApiKey();
+                  selected = await (window as any).aistudio.hasSelectedApiKey();
+                  setHasStudioKey(selected);
               } catch (e) {}
           }
           
-          // Environment key check (Assume valid in production if assigned)
-          const hasEnvKey = !!process.env.API_KEY;
+          // Environment key check
+          const envValid = hasValidApiKey();
           
-          if (hasStudioKey || hasEnvKey) {
+          if (selected || envValid) {
               setIsGatewayActive(true);
+          } else {
+              setIsGatewayActive(false);
           }
       };
 
@@ -98,20 +102,19 @@ export const Integrations: React.FC = () => {
               await (window as any).aistudio.openSelectKey();
               // Per guidelines: Proceed assuming success to mitigate race condition
               setIsGatewayActive(true);
+              setHasStudioKey(true);
           } catch (err) {
               console.error("Studio handshake failed", err);
           } finally {
-              setTimeout(() => setIsVerifying(false), 1000);
+              setIsVerifying(false);
           }
           return;
       }
 
-      // If window.aistudio is not found, we assume the environment key is handled via server/env
-      // We force activate the UI to prevent blocking the user on production domains
+      // Fallback for environment without aistudio provider (e.g. testing)
       setTimeout(() => {
-          setIsGatewayActive(true);
+          setIsGatewayActive(hasValidApiKey());
           setIsVerifying(false);
-          console.log("Neural Gateway: Tunnel Activated via Production Protocol.");
       }, 800);
   };
 
@@ -323,7 +326,7 @@ export const Integrations: React.FC = () => {
                                 <div className="flex items-center gap-2">
                                     <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">API Gateway</h4>
                                     <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${isGatewayActive ? 'bg-emerald-500 text-slate-950 animate-pulse' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
-                                        {isGatewayActive ? 'ACTIVE' : 'STANDBY'}
+                                        {isGatewayActive ? 'CONNECTED' : 'OFFLINE'}
                                     </span>
                                 </div>
                                 <p className="text-[10px] text-slate-500 mt-1 uppercase font-mono tracking-widest leading-relaxed">
@@ -339,11 +342,25 @@ export const Integrations: React.FC = () => {
                                 className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl ${isGatewayActive ? 'bg-slate-950 text-white hover:bg-black' : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-indigo-500/20'}`}
                             >
                                 {isVerifying ? <Loader2 size={14} className="animate-spin"/> : isGatewayActive ? <RefreshCw size={14}/> : <Zap size={14}/>}
-                                {isGatewayActive ? 'Re-verify Neural Link' : 'Establish Secure Link'}
+                                {isGatewayActive ? 'Select Different Key' : 'Establish AI Studio Link'}
                             </button>
-                            <p className="text-[9px] text-slate-400 mt-3 italic text-center px-4 leading-relaxed">
-                                Required for multi-modal Vision AI and high-fidelity tactical strategy analysis.
-                            </p>
+                            
+                            <div className="mt-4 p-4 bg-slate-900/50 rounded-2xl border border-white/5 space-y-3">
+                                <div className="flex gap-3 items-start">
+                                    <Info size={14} className="text-blue-400 shrink-0 mt-0.5"/>
+                                    <p className="text-[9px] text-slate-400 italic leading-relaxed">
+                                        Advanced models (Veo Video, 4K Images) require a <strong>Paid GCP Project API Key</strong>.
+                                    </p>
+                                </div>
+                                <a 
+                                    href="https://ai.google.dev/gemini-api/docs/billing" 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1.5 text-[9px] font-black text-emerald-400 uppercase tracking-widest hover:text-emerald-300 transition-colors"
+                                >
+                                    <LinkIcon size={10}/> Billing Documentation
+                                </a>
+                            </div>
                         </div>
                     </div>
                     <div className="glass p-8 rounded-[2.5rem] border-slate-200 dark:border-slate-800 flex items-center gap-6 group cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-all">

@@ -3,18 +3,31 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SYSTEM_INSTRUCTION, CCTV_SYSTEM_PROMPT, UNIFIED_SYSTEM_PROMPT, MENU_ENGINEERING_PROMPT, STRATEGY_PROMPT } from "../constants";
 import { RecipeCard, SOP, StrategyReport, UnifiedSchema, CCTVAnalysisResult, User, MenuGenerationRequest, MenuItem, InventoryItem, KitchenDesign, MenuStructure } from "../types";
 
-// Internal helper to safely get AI instance
+/**
+ * Internal helper to safely initialize the AI client.
+ * Strictly validates the process.env.API_KEY to prevent library-level crashes.
+ */
 const getAI = () => {
     const key = process.env.API_KEY;
-    if (!key || key === "UNDEFINED" || key.length < 5) {
-        throw new Error("NEURAL_GATEWAY_STANDBY");
+    const isInvalid = !key || 
+                      String(key).trim() === "" || 
+                      String(key).toLowerCase() === "undefined" || 
+                      String(key).toLowerCase() === "null" ||
+                      String(key).length < 8;
+
+    if (isInvalid) {
+        throw new Error("NEURAL_GATEWAY_STANDBY: System requires a valid API Key. Please establish a link via Nexus Control.");
     }
-    return new GoogleGenAI({ apiKey: key });
+    
+    return new GoogleGenAI({ apiKey: String(key).trim() });
 };
 
 export const hasValidApiKey = (): boolean => {
     const key = process.env.API_KEY;
-    return !!key && key !== "UNDEFINED" && key.length > 5;
+    return !!key && 
+           String(key).toLowerCase() !== "undefined" && 
+           String(key).toLowerCase() !== "null" && 
+           String(key).trim().length >= 8;
 };
 
 export const cleanAndParseJSON = <T>(text: string): T => {
