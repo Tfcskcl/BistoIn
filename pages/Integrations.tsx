@@ -36,7 +36,7 @@ export const Integrations: React.FC = () => {
   ]);
 
   // Neural Gateway Status
-  const [isGatewayActive, setIsGatewayActive] = useState(false);
+  const [isGatewayActive, setIsGatewayActive] = useState(hasValidApiKey());
   const [isVerifying, setIsVerifying] = useState(false);
 
   // Integration Config State
@@ -53,6 +53,7 @@ export const Integrations: React.FC = () => {
 
   useEffect(() => {
       const checkGateway = async () => {
+          // Priority 1: Window provider
           let selected = false;
           if ((window as any).aistudio) {
               try {
@@ -60,13 +61,13 @@ export const Integrations: React.FC = () => {
               } catch (e) {}
           }
           
-          // Environment key check
+          // Priority 2: Environment key injection
           const envValid = hasValidApiKey();
           setIsGatewayActive(selected || envValid);
       };
 
       checkGateway();
-      const interval = setInterval(checkGateway, 3000);
+      const interval = setInterval(checkGateway, 2000);
 
       if (user) {
           const links = storageService.getPOSConnections(user.id);
@@ -87,15 +88,25 @@ export const Integrations: React.FC = () => {
   }, [user]);
 
   const handleNeuralHandshake = async () => {
-      if (!(window as any).aistudio) {
-          alert("Handshake Interface standby: This feature requires the official AI Studio execution context. If you are in a local developer environment, please configure your process.env.API_KEY directly.");
-          return;
+      setIsVerifying(true);
+      
+      // If the provider exists, trigger the native selection dialog
+      if ((window as any).aistudio) {
+          const success = await openNeuralGateway();
+          // Rule: Assume key selection was successful and proceed immediately
+          if (success) {
+            setIsGatewayActive(true);
+          }
+      } else {
+          // Fallback for standard environments where direct API keys are used
+          alert("Neural Interface: Directly validating process.env parameters...");
+          if (hasValidApiKey()) {
+              setIsGatewayActive(true);
+          } else {
+              alert("Nexus Authentication Failure: Please provide a valid Gemini API Key in your environment configurations.");
+          }
       }
       
-      setIsVerifying(true);
-      const success = await openNeuralGateway();
-      // Guideline Rule: Assume success to mitigate potential race conditions in selection status.
-      setIsGatewayActive(true); 
       setIsVerifying(false);
   };
 
@@ -128,7 +139,7 @@ export const Integrations: React.FC = () => {
           metadata: {
               projectName: "BistroConnect_Project_Active",
               exportDate: new Date().toISOString(),
-              version: "2.5.0",
+              version: "2.5.1",
               engine: "Gemini-3-Pro-Unified"
           },
           data: {
@@ -148,13 +159,13 @@ export const Integrations: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `BistroIntelligence_Master_Bundle_${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `BistroIntelligence_Bundle_${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      setTimeout(() => setIsExporting(false), 2000);
+      setTimeout(() => setIsExporting(false), 1500);
   };
 
   const togglePOSConnection = (id: string) => {
@@ -323,14 +334,14 @@ export const Integrations: React.FC = () => {
                                 className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl ${isGatewayActive ? 'bg-slate-950 text-white hover:bg-black' : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-indigo-500/20'}`}
                             >
                                 {isVerifying ? <Loader2 size={14} className="animate-spin"/> : isGatewayActive ? <RefreshCw size={14}/> : <Zap size={14}/>}
-                                {isGatewayActive ? 'Select Different Key' : 'Establish AI Studio Link'}
+                                {isGatewayActive ? 'Update Neural Link' : 'Establish Handshake'}
                             </button>
                             
                             <div className="mt-4 p-4 bg-slate-900/50 rounded-2xl border border-white/5 space-y-3">
                                 <div className="flex gap-3 items-start">
                                     <Info size={14} className="text-blue-400 shrink-0 mt-0.5"/>
                                     <p className="text-[9px] text-slate-400 italic leading-relaxed">
-                                        Advanced models (Veo Video, 4K Images) require a <strong>Paid GCP Project API Key</strong>.
+                                        Advanced models (Veo, Pro Vision) require a <strong>Paid GCP Project API Key</strong> for prioritized inference.
                                     </p>
                                 </div>
                                 <a 
