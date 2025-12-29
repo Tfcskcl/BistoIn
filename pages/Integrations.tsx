@@ -106,12 +106,12 @@ export const Integrations: React.FC = () => {
           return;
       }
 
-      // If window.aistudio is not found, we assume the environment key is handled via process.env
-      // We force activate the UI to prevent blocking the user
+      // If window.aistudio is not found, we assume the environment key is handled via server/env
+      // We force activate the UI to prevent blocking the user on production domains
       setTimeout(() => {
           setIsGatewayActive(true);
           setIsVerifying(false);
-          console.log("Neural Gateway: Tunnel Force-Activated via Environment Protocol.");
+          console.log("Neural Gateway: Tunnel Activated via Production Protocol.");
       }, 800);
   };
 
