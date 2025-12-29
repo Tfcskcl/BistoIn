@@ -87,6 +87,14 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
         }
     };
 
+    const handleHandshake = async () => {
+        const success = await openNeuralGateway();
+        if (success) {
+            setIsAiActive(true);
+            await load();
+        }
+    };
+
     useEffect(() => {
         load();
         const handleDataUpdate = () => {
@@ -101,7 +109,7 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                 setIsAiActive(aiValid);
                 load();
             }
-        }, 3000);
+        }, 5000);
 
         return () => {
             window.removeEventListener(storageEvents.DATA_UPDATED, handleDataUpdate);
@@ -120,7 +128,6 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
         (e.target as any).reset();
     };
 
-    // --- Neural Trend Analytics ---
     const trends = useMemo(() => {
         if (cctvHistory.length < 2) return null;
         const latest = cctvHistory[0];
@@ -166,7 +173,6 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 <div className="lg:col-span-3 space-y-6">
-                    {/* Real-time Status Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="glass p-6 rounded-3xl border-slate-800 relative overflow-hidden group">
                              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><IndianRupee size={60}/></div>
@@ -230,7 +236,6 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                         </div>
                     </div>
 
-                    {/* Operational Insights */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="glass p-8 rounded-[2.5rem] border-slate-800 flex flex-col min-h-[400px]">
                             <div className="flex justify-between items-center mb-8">
@@ -256,7 +261,7 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                                                 <div className="mt-6 pt-4 border-t border-white/5 space-y-4">
                                                     <p className="text-[10px] text-slate-500 italic">No API Key detected. Establish neural link to enable real-time tactical audits.</p>
                                                     <button 
-                                                        onClick={() => openNeuralGateway()}
+                                                        onClick={handleHandshake}
                                                         className="w-full py-3 bg-white text-slate-900 font-black rounded-xl text-[10px] uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-xl flex items-center justify-center gap-2"
                                                     >
                                                         <Shield size={14} /> Establish Handshake
@@ -341,9 +346,8 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                 </div>
 
                 <div className="space-y-6">
-                    {/* Latest Behavioral Deviation Card */}
                     {latestAudit?.hygiene_audit?.violations.length ? (
-                        <div className="glass p-8 rounded-[2.5rem] border-red-500/30 bg-red-500/5 relative overflow-hidden group">
+                        <div className="glass p-8 rounded-[2.5rem] border-red-500/30 bg-red-50/5 relative overflow-hidden group">
                             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><AlertTriangle size={80}/></div>
                             <h3 className="text-sm font-black text-red-500 mb-4 uppercase tracking-widest flex items-center gap-2">
                                 <ShieldAlert size={16}/> Critical Deviation

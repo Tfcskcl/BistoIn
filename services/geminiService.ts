@@ -77,7 +77,7 @@ export const analyzeStaffMovement = async (
         contents: { parts: contentParts },
         config: { 
             responseMimeType: "application/json", 
-            thinkingConfig: { thinkingBudget: 0 }
+            thinkingConfig: { thinkingBudget: 4096 }
         }
     });
     
@@ -167,6 +167,7 @@ export const generateRecipeCard = async (
             responseMimeType: "application/json",
             systemInstruction: SYSTEM_INSTRUCTION,
             tools: [{ googleSearch: {} }],
+            thinkingConfig: { thinkingBudget: 4096 },
             responseSchema: {
                 type: Type.OBJECT,
                 properties: {
@@ -282,6 +283,7 @@ export const analyzeUnifiedRestaurantData = async (data: any): Promise<UnifiedSc
         contents: `${UNIFIED_SYSTEM_PROMPT}\nData: ${JSON.stringify(data)}`,
         config: { 
             responseMimeType: 'application/json',
+            thinkingConfig: { thinkingBudget: 4096 },
             responseSchema: {
                 type: Type.OBJECT,
                 properties: {
@@ -305,6 +307,7 @@ export const generateStrategy = async (u: User, q: string, c: string): Promise<S
         config: { 
             systemInstruction: STRATEGY_PROMPT,
             responseMimeType: 'application/json',
+            thinkingConfig: { thinkingBudget: 8192 },
             responseSchema: {
                 type: Type.OBJECT,
                 properties: {
@@ -407,6 +410,7 @@ export const generateMenu = async (req: MenuGenerationRequest): Promise<string> 
         contents: prompt,
         config: { 
             responseMimeType: 'application/json',
+            thinkingConfig: { thinkingBudget: 4096 },
             responseSchema: {
                 type: Type.OBJECT,
                 properties: {
@@ -453,6 +457,7 @@ export const generateKitchenDesign = async (title: string, l: number, w: number,
         contents: `Architectural Kitchen Layout Task. Restaurant: ${title}. Dimensions: ${l}x${w}ft. Cuisine: ${cuisine}. Requirements: ${reqs}. Use percentages for x, y, w, h.`,
         config: { 
             responseMimeType: 'application/json',
+            thinkingConfig: { thinkingBudget: 4096 },
             responseSchema: {
                 type: Type.OBJECT,
                 properties: {

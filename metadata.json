@@ -2,6 +2,7 @@
   "name": "BistroConnect Neural OS",
   "description": "Multi-modal AI operating system for high-fidelity restaurant operations.",
   "requestFramePermissions": [
-    "camera"
+    "camera",
+    "geolocation"
   ]
 }

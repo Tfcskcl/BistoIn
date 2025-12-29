@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { generateRecipeCard, generateMarketingImage } from '../services/geminiService';
 import { ingredientService } from '../services/ingredientService';
 import { RecipeCard, MenuItem, User, UserRole, PreparationStep } from '../types';
-import { Loader2, ChefHat, Save, Search, Plus, Trash2, ShieldCheck, Calculator, Camera, Sparkles, X, TrendingUp, DollarSign, UtensilsCrossed, AlertCircle, CheckCircle2, Download, Printer, Globe, FlaskConical, Image as ImageIcon } from 'lucide-react';
+import { Loader2, ChefHat, Save, Search, Plus, Trash2, ShieldCheck, Calculator, Camera, Sparkles, X, TrendingUp, DollarSign, UtensilsCrossed, AlertCircle, CheckCircle2, Download, Printer, Globe, FlaskConical, Image as ImageIcon, ExternalLink } from 'lucide-react';
 import { storageService } from '../services/storageService';
 import { Logo } from '../components/Logo';
 
@@ -70,7 +70,6 @@ export const RecipeHub: React.FC<RecipeHubProps> = ({ user, onUserUpdate }) => {
               ingredientService.learnPrices(res.ingredients);
           }
 
-          // Initial Render for main dish photo
           handleGenerateMainImage(res);
 
       } catch (err: any) {
@@ -102,7 +101,6 @@ export const RecipeHub: React.FC<RecipeHubProps> = ({ user, onUserUpdate }) => {
       
       for (let i = 0; i < steps.length; i++) {
           try {
-              // Set generating state for UI
               steps[i] = { ...steps[i], isGenerating: true };
               setGeneratedRecipe(prev => prev ? { ...prev, preparation_steps_data: [...steps] } : null);
               
@@ -192,6 +190,15 @@ export const RecipeHub: React.FC<RecipeHubProps> = ({ user, onUserUpdate }) => {
                                 `).join('')}
                             </tbody>
                         </table>
+                    </div>
+
+                    <div class="mb-12">
+                        <h3 class="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-4 border-b pb-1">Cost Verification Sources</h3>
+                        <div class="space-y-1">
+                            ${(generatedRecipe.sources || []).map(s => `
+                                <div class="text-[10px] text-blue-600 font-mono underline">${s.uri}</div>
+                            `).join('')}
+                        </div>
                     </div>
 
                     <div>
@@ -299,7 +306,6 @@ export const RecipeHub: React.FC<RecipeHubProps> = ({ user, onUserUpdate }) => {
               <div className="flex-1 bg-slate-50 dark:bg-slate-950 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 overflow-y-auto custom-scrollbar p-10 flex flex-col items-center">
                   {generatedRecipe ? (
                       <div className="w-full max-w-5xl space-y-10 animate-fade-in pb-20">
-                          {/* Header Artifact */}
                           <div className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row">
                               <div className="flex-1 p-10">
                                   <div className="flex items-center gap-3 mb-4">
@@ -347,10 +353,8 @@ export const RecipeHub: React.FC<RecipeHubProps> = ({ user, onUserUpdate }) => {
                               </div>
                           </div>
 
-                          {/* Detail Matrix */}
                           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                                 <div className="lg:col-span-2 space-y-8">
-                                    {/* Cost Matrix */}
                                     <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 p-8 shadow-sm">
                                         <div className="flex justify-between items-center mb-6">
                                             <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 flex items-center gap-2">
@@ -377,9 +381,20 @@ export const RecipeHub: React.FC<RecipeHubProps> = ({ user, onUserUpdate }) => {
                                                 </tbody>
                                             </table>
                                         </div>
+                                        {(generatedRecipe.sources || []).length > 0 && (
+                                            <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
+                                                <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Verified Grounding Sources</h4>
+                                                <div className="space-y-2">
+                                                    {generatedRecipe.sources?.map((source, i) => (
+                                                        <a key={i} href={source.uri} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-[10px] text-blue-500 hover:text-blue-400 transition-colors">
+                                                            <ExternalLink size={10} /> {source.title || source.uri}
+                                                        </a>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
-                                    {/* Visual SOP Steps */}
                                     <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 p-8 shadow-sm">
                                         <div className="flex justify-between items-center mb-10">
                                             <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 flex items-center gap-2">
