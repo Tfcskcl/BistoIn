@@ -7,7 +7,6 @@ import {
     ImageIcon, Link2, LogOut, Globe, UserIcon, BarChart3, FileJson, 
     Archive, Database, ShieldAlert, Cpu, IndianRupee, History, Trash2, 
     Calendar, Plus, Users, ShoppingBag, Wallet, Network, Settings2, Sparkles, Activity, Zap,
-    // Add RefreshCw import
     RefreshCw
 } from 'lucide-react';
 import { storageService, storageEvents } from '../services/storageService';
@@ -53,21 +52,22 @@ export const Integrations: React.FC = () => {
 
   useEffect(() => {
       const checkGateway = async () => {
+          // Aistudio key check
+          let hasStudioKey = false;
           if ((window as any).aistudio) {
               try {
-                  const active = await (window as any).aistudio.hasSelectedApiKey();
-                  setIsGatewayActive(active);
-              } catch (e) {
-                  console.error("Gateway probe failed", e);
-              }
+                  hasStudioKey = await (window as any).aistudio.hasSelectedApiKey();
+              } catch (e) {}
           }
+          
+          // Environment key check (fallback for production domains)
+          const hasEnvKey = !!process.env.API_KEY;
+          
+          setIsGatewayActive(hasStudioKey || hasEnvKey);
       };
 
-      // Initial check
       checkGateway();
-
-      // Poll for status changes (since selection happens in an external iframe/dialog)
-      const interval = setInterval(checkGateway, 2000);
+      const interval = setInterval(checkGateway, 3000);
 
       if (user) {
           const links = storageService.getPOSConnections(user.id);
@@ -88,20 +88,30 @@ export const Integrations: React.FC = () => {
   }, [user]);
 
   const handleNeuralHandshake = async () => {
-      if (!(window as any).aistudio) {
-          alert("System Gateway Not Found. Please ensure you are running in an AI-capable environment.");
+      setIsVerifying(true);
+      
+      // Attempt Aistudio handshake if available
+      if ((window as any).aistudio) {
+          try {
+              await (window as any).aistudio.openSelectKey();
+              setIsGatewayActive(true);
+          } catch (err) {
+              console.error("Handshake failed", err);
+          } finally {
+              setTimeout(() => setIsVerifying(false), 1000);
+          }
           return;
       }
-      
-      setIsVerifying(true);
-      try {
-          await (window as any).aistudio.openSelectKey();
-          // Per guidelines, proceed immediately assuming success to mitigate race conditions
-          setIsGatewayActive(true);
-      } catch (err) {
-          console.error("Handshake failed", err);
-      } finally {
-          setTimeout(() => setIsVerifying(false), 1500);
+
+      // Fallback for standard web environment with process.env.API_KEY
+      if (process.env.API_KEY) {
+          setTimeout(() => {
+              setIsGatewayActive(true);
+              setIsVerifying(false);
+          }, 1200);
+      } else {
+          setIsVerifying(false);
+          alert("Neural Error: System Gateway Not Detected. Please ensure a valid API key is configured in your Environment variables for node 'NODE_04'.");
       }
   };
 
