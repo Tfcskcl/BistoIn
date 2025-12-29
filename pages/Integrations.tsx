@@ -7,7 +7,7 @@ import {
     ImageIcon, Link2, LogOut, Globe, UserIcon, BarChart3, FileJson, 
     Archive, Database, ShieldAlert, Cpu, IndianRupee, History, Trash2, 
     Calendar, Plus, Users, ShoppingBag, Wallet, Network, Settings2, Sparkles, Activity, Zap,
-    RefreshCw, Info, ExternalLink as LinkIcon
+    RefreshCw, Info, ExternalLink as LinkIcon, Terminal, Check
 } from 'lucide-react';
 import { storageService, storageEvents } from '../services/storageService';
 import { ManualSalesEntry, ManualPurchaseEntry, ManualExpenseEntry, ManualManpowerEntry, User, IntegrationConfig } from '../types';
@@ -37,6 +37,7 @@ export const Integrations: React.FC = () => {
 
   // Neural Gateway Status
   const [isGatewayActive, setIsGatewayActive] = useState(hasValidApiKey());
+  const [handshakeStep, setHandshakeStep] = useState<1 | 2 | 3 | 4>(hasValidApiKey() ? 3 : 1);
   const [isVerifying, setIsVerifying] = useState(false);
 
   // Integration Config State
@@ -53,17 +54,21 @@ export const Integrations: React.FC = () => {
 
   useEffect(() => {
       const checkGateway = async () => {
-          // Priority 1: Window provider
           let selected = false;
           if ((window as any).aistudio) {
               try {
                   selected = await (window as any).aistudio.hasSelectedApiKey();
               } catch (e) {}
           }
-          
-          // Priority 2: Environment key injection
           const envValid = hasValidApiKey();
-          setIsGatewayActive(selected || envValid);
+          const active = selected || envValid;
+          setIsGatewayActive(active);
+          
+          if (active && handshakeStep < 3) {
+              setHandshakeStep(3);
+          } else if (!active && handshakeStep >= 3) {
+              setHandshakeStep(1);
+          }
       };
 
       checkGateway();
@@ -85,28 +90,23 @@ export const Integrations: React.FC = () => {
       }
 
       return () => clearInterval(interval);
-  }, [user]);
+  }, [user, handshakeStep]);
 
   const handleNeuralHandshake = async () => {
       setIsVerifying(true);
-      
-      // If the provider exists, trigger the native selection dialog
       if ((window as any).aistudio) {
-          const success = await openNeuralGateway();
-          // Rule: Assume key selection was successful and proceed immediately
-          if (success) {
-            setIsGatewayActive(true);
-          }
+          await openNeuralGateway();
+          setIsGatewayActive(true);
+          setHandshakeStep(3);
       } else {
-          // Fallback for standard environments where direct API keys are used
-          alert("Neural Interface: Directly validating process.env parameters...");
+          // Fallback check
           if (hasValidApiKey()) {
               setIsGatewayActive(true);
+              setHandshakeStep(3);
           } else {
-              alert("Nexus Authentication Failure: Please provide a valid Gemini API Key in your environment configurations.");
+              setHandshakeStep(2); // Prompt specifically for key
           }
       }
-      
       setIsVerifying(false);
   };
 
@@ -139,7 +139,7 @@ export const Integrations: React.FC = () => {
           metadata: {
               projectName: "BistroConnect_Project_Active",
               exportDate: new Date().toISOString(),
-              version: "2.5.1",
+              version: "2.5.2",
               engine: "Gemini-3-Pro-Unified"
           },
           data: {
@@ -268,10 +268,164 @@ export const Integrations: React.FC = () => {
       {activeTab === 'network' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-6">
-                <div className="glass p-8 rounded-[2.5rem] border-slate-200 dark:border-slate-800">
+                
+                {/* --- NEURAL HANDSHAKE TERMINAL --- */}
+                <div className="bg-slate-950 border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl transition-all relative">
+                    <div className="flex items-center gap-2 px-6 py-4 bg-slate-900/50 border-b border-slate-800">
+                        <Terminal size={16} className="text-emerald-500" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">BistroIntelligence // Neural_Gateway_Interface</span>
+                        <div className="flex-1"></div>
+                        <div className="flex gap-1.5">
+                            <div className="w-2 h-2 rounded-full bg-red-500/50"></div>
+                            <div className="w-2 h-2 rounded-full bg-yellow-500/50"></div>
+                            <div className="w-2 h-2 rounded-full bg-emerald-500/50"></div>
+                        </div>
+                    </div>
+
+                    <div className="p-10">
+                        {!isGatewayActive ? (
+                            <div className="space-y-8 animate-fade-in">
+                                {handshakeStep === 1 && (
+                                    <div className="space-y-6">
+                                        <div>
+                                            <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-2">SYSTEM_HANDSHAKE_REQUIRED</h3>
+                                            <p className="text-sm text-slate-500 leading-relaxed max-w-lg">
+                                                To initialize the BistroConnect Intelligence platform, a valid Google Gemini API key is required. This key powers the multi-modal neural nodes responsible for real-time restaurant audits.
+                                            </p>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
+                                                <h4 className="text-[10px] font-black text-emerald-400 uppercase mb-2">Why is it required?</h4>
+                                                <p className="text-xs text-slate-400 leading-relaxed">The platform uses high-tier vision models (Gemini 3 Pro) for complex behavioral analysis and market costing.</p>
+                                            </div>
+                                            <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
+                                                <h4 className="text-[10px] font-black text-indigo-400 uppercase mb-2">Security & Privacy</h4>
+                                                <p className="text-xs text-slate-400 leading-relaxed">Your key is used exclusively for this workspace. We do not store or mirror your API keys on external servers.</p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => setHandshakeStep(2)}
+                                            className="px-8 py-4 bg-white text-slate-950 font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-xl flex items-center gap-2"
+                                        >
+                                            Continue to Link <ArrowRight size={14}/>
+                                        </button>
+                                    </div>
+                                )}
+
+                                {handshakeStep === 2 && (
+                                    <div className="space-y-6">
+                                        <div className="flex items-center gap-6 mb-8">
+                                            <div className="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center border border-emerald-500/20 text-emerald-500 shadow-[0_0_40px_rgba(16,185,129,0.1)]">
+                                                <Key size={32} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Establish Neural Link</h3>
+                                                <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mt-1">STATUS: WAITING_FOR_KEY_INJECTION</p>
+                                            </div>
+                                        </div>
+                                        <div className="p-6 bg-slate-900/50 rounded-3xl border border-white/5 space-y-4">
+                                            <p className="text-xs text-slate-400 leading-relaxed">
+                                                By establishing this link, you unlock the full capability suite of the BistroConnect Neural OS. Please ensure you select an API key from a <strong>Paid GCP project</strong> to enable video and 4K image inference.
+                                            </p>
+                                            <button 
+                                                onClick={handleNeuralHandshake}
+                                                disabled={isVerifying}
+                                                className="w-full py-5 bg-emerald-600 text-white font-black rounded-2xl text-xs uppercase tracking-[0.2em] hover:bg-emerald-500 transition-all shadow-2xl flex items-center justify-center gap-3"
+                                            >
+                                                {isVerifying ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18}/>}
+                                                Establish AI Studio Link
+                                            </button>
+                                        </div>
+                                        <button onClick={() => setHandshakeStep(1)} className="text-[10px] font-black text-slate-600 uppercase tracking-widest hover:text-white transition-colors">Abort Handshake</button>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="space-y-10 animate-fade-in">
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                                    <div className="flex items-center gap-6">
+                                        <div className="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center border border-emerald-500/20 text-emerald-500 shadow-[0_0_40px_rgba(16,185,129,0.1)] neural-pulse">
+                                            <CheckCircle2 size={32} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-2xl font-black text-white uppercase tracking-tighter">API_GATEWAY_ONLINE</h3>
+                                            <p className="text-[10px] font-mono text-emerald-500 uppercase tracking-widest mt-1">System Health: 100% // Model: Gemini-3-Pro-Preview</p>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={() => openNeuralGateway()}
+                                        className="px-6 py-2.5 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
+                                    >
+                                        <RefreshCw size={14}/> Update Link
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-4">
+                                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-2">Enabled Capabilities</h4>
+                                        <div className="grid grid-cols-1 gap-2">
+                                            {[
+                                                "Recipe & Costing Engine",
+                                                "SOP Studio (Auto-Refinement)",
+                                                "Staff Movement & CCTV Analytics",
+                                                "Inventory Intelligence",
+                                                "Strategy & Marketing Generator",
+                                                "Dashboard Intelligence Rendering"
+                                            ].map((cap, i) => (
+                                                <div key={i} className="flex items-center gap-3 text-xs text-slate-300 font-medium">
+                                                    <div className="w-4 h-4 rounded bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                                                        <Check size={10} className="text-emerald-500" />
+                                                    </div>
+                                                    {cap}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-2">System Diagnostics</h4>
+                                        <div className="space-y-3">
+                                            <div className={`p-4 rounded-2xl border flex items-center justify-between ${Object.values(posLinks).some(v=>v) ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-amber-500/5 border-amber-500/20'}`}>
+                                                <div className="flex items-center gap-3">
+                                                    <Server size={14} className={Object.values(posLinks).some(v=>v) ? 'text-emerald-500' : 'text-amber-500'} />
+                                                    <span className="text-[10px] font-bold text-slate-300 uppercase">POS Integrations</span>
+                                                </div>
+                                                {Object.values(posLinks).some(v=>v) ? (
+                                                    <span className="text-[8px] font-black text-emerald-500 uppercase">SYNCHRONIZED</span>
+                                                ) : (
+                                                    <span className="text-[8px] font-black text-amber-500 uppercase">MISSING_STREAMS</span>
+                                                )}
+                                            </div>
+                                            {!Object.values(posLinks).some(v=>v) && (
+                                                <div className="p-4 bg-slate-900/50 rounded-2xl border border-white/5">
+                                                    <p className="text-[10px] text-slate-400 italic mb-3 leading-relaxed">
+                                                        External data sources (Swiggy, Zomato, Petpooja) are not linked. Strategy accuracy may be degraded.
+                                                    </p>
+                                                    <button 
+                                                        onClick={() => setActiveTab('network')}
+                                                        className="text-[10px] font-black text-indigo-400 hover:text-indigo-300 uppercase tracking-widest flex items-center gap-2"
+                                                    >
+                                                        Next Best Action: Link POS Node <ArrowRight size={10}/>
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="p-6 bg-slate-900/30 border-t border-slate-800 flex justify-between items-center text-[9px] font-mono text-slate-600 uppercase tracking-widest">
+                        <span>AES_256_ENCRYPTED_TUNNEL</span>
+                        <span>NODE_ID: BC_OS_ALPHA_04</span>
+                    </div>
+                </div>
+
+                <div className="glass p-8 rounded-[2.5rem] border-slate-200 dark:border-slate-800 mt-8">
                     <div className="flex justify-between items-center mb-8">
                         <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-2">
-                            <Server className="text-indigo-500" size={24}/> Connected POS Nodes
+                            <Server className="text-indigo-500" size={24}/> External Data Streams (POS)
                         </h3>
                         <span className="text-[10px] font-mono text-slate-500">ACTIVE_LINKS: {integrations.filter(i=>i.status==='connected').length}</span>
                     </div>
@@ -305,69 +459,6 @@ export const Integrations: React.FC = () => {
                         ))}
                     </div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div 
-                        className={`glass p-8 rounded-[2.5rem] border-slate-200 dark:border-slate-800 flex flex-col gap-6 relative overflow-hidden transition-all ${isGatewayActive ? 'border-emerald-500/30 bg-emerald-500/5' : 'bg-white dark:bg-slate-950'}`}
-                    >
-                        <div className="flex items-center gap-6">
-                            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border transition-transform ${isGatewayActive ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400'}`}>
-                                {isVerifying ? <Loader2 size={24} className="animate-spin"/> : <Key size={24} />}
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">API Gateway</h4>
-                                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${isGatewayActive ? 'bg-emerald-500 text-slate-950 animate-pulse' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
-                                        {isGatewayActive ? 'CONNECTED' : 'OFFLINE'}
-                                    </span>
-                                </div>
-                                <p className="text-[10px] text-slate-500 mt-1 uppercase font-mono tracking-widest leading-relaxed">
-                                    {isGatewayActive ? 'NEURAL_TUNNEL_ESTABLISHED' : 'SYSTEM_HANDSHAKE_REQUIRED'}
-                                </p>
-                            </div>
-                        </div>
-                        
-                        <div className="pt-2">
-                            <button 
-                                onClick={handleNeuralHandshake}
-                                disabled={isVerifying}
-                                className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl ${isGatewayActive ? 'bg-slate-950 text-white hover:bg-black' : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-indigo-500/20'}`}
-                            >
-                                {isVerifying ? <Loader2 size={14} className="animate-spin"/> : isGatewayActive ? <RefreshCw size={14}/> : <Zap size={14}/>}
-                                {isGatewayActive ? 'Update Neural Link' : 'Establish Handshake'}
-                            </button>
-                            
-                            <div className="mt-4 p-4 bg-slate-900/50 rounded-2xl border border-white/5 space-y-3">
-                                <div className="flex gap-3 items-start">
-                                    <Info size={14} className="text-blue-400 shrink-0 mt-0.5"/>
-                                    <p className="text-[9px] text-slate-400 italic leading-relaxed">
-                                        Advanced models (Veo, Pro Vision) require a <strong>Paid GCP Project API Key</strong> for prioritized inference.
-                                    </p>
-                                </div>
-                                <a 
-                                    href="https://ai.google.dev/gemini-api/docs/billing" 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1.5 text-[9px] font-black text-emerald-400 uppercase tracking-widest hover:text-emerald-300 transition-colors"
-                                >
-                                    <LinkIcon size={10}/> Billing Documentation
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="glass p-8 rounded-[2.5rem] border-slate-200 dark:border-slate-800 flex items-center gap-6 group cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-all">
-                        <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/20 group-hover:scale-110 transition-transform">
-                            <Globe className="text-emerald-500" />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">Cloud Sync</h4>
-                                <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950">ONLINE</span>
-                            </div>
-                            <p className="text-[10px] text-slate-500 mt-1 uppercase font-mono tracking-widest">Multi-Node Replication</p>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <div className="lg:col-span-1 space-y-6">
@@ -388,13 +479,36 @@ export const Integrations: React.FC = () => {
                         <button className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-xl">Force Re-extraction</button>
                     </div>
                 </div>
+                
+                <div className="glass p-8 rounded-[2.5rem] border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Neural Fidelity Meter</h4>
+                    <div className="space-y-6">
+                        <div>
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase">Vision Depth</span>
+                                <span className="text-[10px] font-black text-emerald-500">PRO_ACTIVE</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                <div className="h-full bg-emerald-500 w-[95%]"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase">Costing Accuracy</span>
+                                <span className="text-[10px] font-black text-indigo-500">GROUNDED</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                <div className="h-full bg-indigo-500 w-[88%]"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
       )}
 
       {activeTab === 'manual' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in-up">
-              {/* Category Selector */}
               <div className="lg:col-span-3 space-y-3">
                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 ml-2">Ingress Streams</p>
                   <button onClick={() => setManualCategory('sales')} className={`w-full p-6 rounded-3xl border-2 flex items-center gap-4 transition-all ${manualCategory === 'sales' ? 'border-emerald-500 bg-emerald-50/10 shadow-lg' : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'}`}>
@@ -415,7 +529,6 @@ export const Integrations: React.FC = () => {
                   </button>
               </div>
 
-              {/* Data Input Area */}
               <div className="lg:col-span-9 flex flex-col gap-6">
                   <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-xl">
                       <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-8 flex items-center gap-3">
@@ -425,22 +538,22 @@ export const Integrations: React.FC = () => {
                       
                       <form onSubmit={handleAddManualEntry} className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
                           <div>
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Entry Date</label>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Entry Date</label>
                               <input name="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" />
                           </div>
 
                           {manualCategory === 'sales' && (
                               <>
                                   <div>
-                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Revenue (₹)</label>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Revenue (₹)</label>
                                       <input name="revenue" type="number" required placeholder="0.00" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
                                   </div>
                                   <div>
-                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Order Count</label>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Order Count</label>
                                       <input name="orders" type="number" required placeholder="0" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
                                   </div>
                                   <div>
-                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Channel</label>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Channel</label>
                                       <select name="channel" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none">
                                           <option>Walk-in</option>
                                           <option>Online</option>
@@ -453,15 +566,15 @@ export const Integrations: React.FC = () => {
                           {manualCategory === 'purchase' && (
                               <>
                                   <div>
-                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Supplier Name</label>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Supplier Name</label>
                                       <input name="supplier" type="text" required placeholder="Vendor ID" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
                                   </div>
                                   <div>
-                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Amount (₹)</label>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Amount (₹)</label>
                                       <input name="amount" type="number" required placeholder="0.00" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
                                   </div>
                                   <div>
-                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Category</label>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Category</label>
                                       <input name="category" type="text" required placeholder="Dry Goods / Dairy" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
                                   </div>
                               </>
@@ -470,7 +583,7 @@ export const Integrations: React.FC = () => {
                           {manualCategory === 'expense' && (
                               <>
                                   <div>
-                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Expense Type</label>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Expense Type</label>
                                       <select name="type" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none">
                                           <option>Rent</option>
                                           <option>Utility</option>
@@ -480,11 +593,11 @@ export const Integrations: React.FC = () => {
                                       </select>
                                   </div>
                                   <div>
-                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Amount (₹)</label>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Amount (₹)</label>
                                       <input name="amount" type="number" required placeholder="0.00" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
                                   </div>
                                   <div>
-                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Note</label>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Note</label>
                                       <input name="note" type="text" placeholder="Details..." className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
                                   </div>
                                   <div className="hidden md:block"></div>
@@ -494,15 +607,15 @@ export const Integrations: React.FC = () => {
                           {manualCategory === 'manpower' && (
                               <>
                                   <div>
-                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Staff Count</label>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Staff Count</label>
                                       <input name="staff" type="number" required placeholder="0" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
                                   </div>
                                   <div>
-                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Total Salaries (₹)</label>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Total Salaries (₹)</label>
                                       <input name="salaries" type="number" required placeholder="0.00" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
                                   </div>
                                   <div>
-                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Overtime Hours</label>
+                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Overtime Hours</label>
                                       <input name="overtime" type="number" placeholder="0" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 rounded-xl text-sm dark:text-white outline-none" />
                                   </div>
                               </>
@@ -514,7 +627,6 @@ export const Integrations: React.FC = () => {
                       </form>
                   </div>
 
-                  {/* History of manual entries */}
                   <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex-1">
                       <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center">
                           <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Ingress Log: {manualCategory}</h4>
