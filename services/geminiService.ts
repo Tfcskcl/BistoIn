@@ -5,40 +5,44 @@ import { RecipeCard, SOP, StrategyReport, UnifiedSchema, CCTVAnalysisResult, Use
 
 /**
  * TECHNICAL PROVISION: Triggers the AI Studio Key Selection Dialog.
- * Mandatory for accessing high-tier models (Veo, Pro Vision).
  */
 export const openNeuralGateway = async (): Promise<boolean> => {
     if ((window as any).aistudio) {
         try {
             await (window as any).aistudio.openSelectKey();
-            // Per guidelines: Assume success to mitigate race conditions
+            // Per Gemini Guidelines: Assume success to mitigate race conditions
             return true;
         } catch (e) {
             console.error("Neural Gateway Handshake failed:", e);
             return false;
         }
     }
-    console.error("Nexus Gateway Error: AI Studio provider not detected in this environment.");
-    return false;
+    // If running in a context without aistudio provider (e.g. local preview with process.env.API_KEY)
+    return hasValidApiKey();
+};
+
+/**
+ * Global check for neural link health.
+ * Validates the presence of the injected API_KEY environment variable.
+ */
+export const hasValidApiKey = (): boolean => {
+    const key = process.env.API_KEY;
+    const isValid = !!key && 
+                    String(key).toLowerCase() !== "undefined" && 
+                    String(key).toLowerCase() !== "null" && 
+                    String(key).trim().length >= 8;
+    return isValid;
 };
 
 /**
  * Internal helper to safely initialize the AI client.
  * Strictly validates the process.env.API_KEY to prevent library-level crashes.
- * Instances are created per-call to ensure fresh key usage.
  */
 const getAI = () => {
     const key = process.env.API_KEY;
-    const isInvalid = !key || 
-                      String(key).trim() === "" || 
-                      String(key).toLowerCase() === "undefined" || 
-                      String(key).toLowerCase() === "null" ||
-                      String(key).length < 8;
-
-    if (isInvalid) {
+    if (!hasValidApiKey()) {
         throw new Error("NEURAL_GATEWAY_STANDBY: System requires a valid API Key. Please establish a link via Nexus Control.");
     }
-    
     return new GoogleGenAI({ apiKey: String(key).trim() });
 };
 
@@ -48,22 +52,11 @@ const getAI = () => {
  */
 const handleNeuralError = async (err: any) => {
     if (err.message && err.message.includes("Requested entity was not found")) {
-        console.warn("Nexus Gateway: Authentication Expired. Re-triggering Handshake.");
+        console.warn("Nexus Gateway: Authentication Expired. Resetting Link.");
         await openNeuralGateway();
         throw new Error("NEURAL_SESSION_RESET: Gateway link reset. Please retry your request.");
     }
     throw err;
-};
-
-/**
- * Global check for neural link health.
- */
-export const hasValidApiKey = (): boolean => {
-    const key = process.env.API_KEY;
-    return !!key && 
-           String(key).toLowerCase() !== "undefined" && 
-           String(key).toLowerCase() !== "null" && 
-           String(key).trim().length >= 8;
 };
 
 export const cleanAndParseJSON = <T>(text: string): T => {

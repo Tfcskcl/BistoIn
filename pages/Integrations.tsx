@@ -62,17 +62,16 @@ export const Integrations: React.FC = () => {
           }
           const envValid = hasValidApiKey();
           const active = selected || envValid;
-          setIsGatewayActive(active);
           
-          if (active && handshakeStep < 3) {
-              setHandshakeStep(3);
-          } else if (!active && handshakeStep >= 3) {
-              setHandshakeStep(1);
+          if (active !== isGatewayActive) {
+              setIsGatewayActive(active);
+              if (active) setHandshakeStep(3);
+              else if (!active && handshakeStep >= 3) setHandshakeStep(1);
           }
       };
 
       checkGateway();
-      const interval = setInterval(checkGateway, 2000);
+      const interval = setInterval(checkGateway, 1000);
 
       if (user) {
           const links = storageService.getPOSConnections(user.id);
@@ -90,22 +89,17 @@ export const Integrations: React.FC = () => {
       }
 
       return () => clearInterval(interval);
-  }, [user, handshakeStep]);
+  }, [user, handshakeStep, isGatewayActive]);
 
   const handleNeuralHandshake = async () => {
       setIsVerifying(true);
-      if ((window as any).aistudio) {
-          await openNeuralGateway();
+      // Call the provisioning helper
+      const result = await openNeuralGateway();
+      
+      // Rule: Assume key selection was successful to mitigate race condition
+      if ((window as any).aistudio || result || hasValidApiKey()) {
           setIsGatewayActive(true);
           setHandshakeStep(3);
-      } else {
-          // Fallback check
-          if (hasValidApiKey()) {
-              setIsGatewayActive(true);
-              setHandshakeStep(3);
-          } else {
-              setHandshakeStep(2); // Prompt specifically for key
-          }
       }
       setIsVerifying(false);
   };
@@ -139,7 +133,7 @@ export const Integrations: React.FC = () => {
           metadata: {
               projectName: "BistroConnect_Project_Active",
               exportDate: new Date().toISOString(),
-              version: "2.5.2",
+              version: "2.5.3",
               engine: "Gemini-3-Pro-Unified"
           },
           data: {
@@ -165,7 +159,7 @@ export const Integrations: React.FC = () => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      setTimeout(() => setIsExporting(false), 1500);
+      setTimeout(() => setIsExporting(false), 1000);
   };
 
   const togglePOSConnection = (id: string) => {
@@ -184,7 +178,7 @@ export const Integrations: React.FC = () => {
               }
               return int;
           }));
-      }, 800);
+      }, 500);
   };
 
   const handleAddManualEntry = (e: React.FormEvent) => {
@@ -282,7 +276,7 @@ export const Integrations: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="p-10">
+                    <div className="p-10 min-h-[300px] flex flex-col justify-center">
                         {!isGatewayActive ? (
                             <div className="space-y-8 animate-fade-in">
                                 {handshakeStep === 1 && (
@@ -353,7 +347,7 @@ export const Integrations: React.FC = () => {
                                         </div>
                                     </div>
                                     <button 
-                                        onClick={() => openNeuralGateway()}
+                                        onClick={handleNeuralHandshake}
                                         className="px-6 py-2.5 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
                                     >
                                         <RefreshCw size={14}/> Update Link
