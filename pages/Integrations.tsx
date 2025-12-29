@@ -1,6 +1,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { UploadCloud, CheckCircle2, Server, Loader2, X, FileSpreadsheet, Download, Settings, Key, AlertTriangle, ArrowRight, ShieldCheck, BookOpen, ExternalLink, Save, Receipt, Instagram, Facebook, MapPin, Megaphone, ImageIcon, Link2, LogOut, Globe, UserIcon, BarChart3, FileJson, Archive, Database, ShieldAlert, Cpu, IndianRupee, History, Trash2, Calendar, Plus, Users, ShoppingBag, Wallet, Network, Settings2 } from 'lucide-react';
+import { 
+    UploadCloud, CheckCircle2, Server, Loader2, X, FileSpreadsheet, Download, 
+    Settings, Key, AlertTriangle, ArrowRight, ShieldCheck, BookOpen, 
+    ExternalLink, Save, Receipt, Instagram, Facebook, MapPin, Megaphone, 
+    ImageIcon, Link2, LogOut, Globe, UserIcon, BarChart3, FileJson, 
+    Archive, Database, ShieldAlert, Cpu, IndianRupee, History, Trash2, 
+    Calendar, Plus, Users, ShoppingBag, Wallet, Network, Settings2, Sparkles, Activity
+} from 'lucide-react';
 import { storageService, storageEvents } from '../services/storageService';
 import { ManualSalesEntry, ManualPurchaseEntry, ManualExpenseEntry, ManualManpowerEntry, User, IntegrationConfig } from '../types';
 import { authService } from '../services/authService';
@@ -26,6 +33,10 @@ export const Integrations: React.FC = () => {
     { id: 'zomato', name: 'Zomato', icon: 'Z', status: 'disconnected' },
   ]);
 
+  // Neural Gateway Status
+  const [isGatewayActive, setIsGatewayActive] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+
   // Integration Config State
   const [configModal, setConfigModal] = useState<IntegrationItem | null>(null);
   const [currentConfig, setCurrentConfig] = useState<IntegrationConfig>({ storeId: '', apiKey: '', apiSecret: '' });
@@ -39,6 +50,14 @@ export const Integrations: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
+      const checkGateway = async () => {
+          if ((window as any).aistudio) {
+              const active = await (window as any).aistudio.hasSelectedApiKey();
+              setIsGatewayActive(active);
+          }
+      };
+      checkGateway();
+
       if (user) {
           const links = storageService.getPOSConnections(user.id);
           setPosLinks(links);
@@ -53,7 +72,17 @@ export const Integrations: React.FC = () => {
           setExpenseEntries(storageService.getManualExpenses(user.id));
           setManualManpower(storageService.getManualManpower(user.id));
       }
-  }, []);
+  }, [user]);
+
+  const handleNeuralHandshake = async () => {
+      setIsVerifying(true);
+      if ((window as any).aistudio) {
+          await (window as any).aistudio.openSelectKey();
+          // Assume success after selection as per guidelines
+          setIsGatewayActive(true);
+      }
+      setTimeout(() => setIsVerifying(false), 1000);
+  };
 
   const handleOpenConfig = (item: IntegrationItem) => {
       if (!user) return;
@@ -252,13 +281,23 @@ export const Integrations: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="glass p-8 rounded-[2.5rem] border-slate-200 dark:border-slate-800 flex items-center gap-6 group cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-all">
-                        <div className="w-16 h-16 bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-500/20 group-hover:scale-110 transition-transform">
-                            <Key className="text-indigo-500" />
+                    <div 
+                        onClick={handleNeuralHandshake}
+                        className={`glass p-8 rounded-[2.5rem] border-slate-200 dark:border-slate-800 flex items-center gap-6 group cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-all ${isGatewayActive ? 'border-emerald-500/30 bg-emerald-500/5' : ''}`}
+                    >
+                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border group-hover:scale-110 transition-transform ${isGatewayActive ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-500'}`}>
+                            {isVerifying ? <Loader2 size={24} className="animate-spin"/> : <Key size={24} />}
                         </div>
                         <div>
-                            <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">API Gateway</h4>
-                            <p className="text-[10px] text-slate-500 mt-1 uppercase font-mono tracking-widest">Global Secret Config</p>
+                            <div className="flex items-center gap-2">
+                                <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">API Gateway</h4>
+                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${isGatewayActive ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500'}`}>
+                                    {isGatewayActive ? 'ACTIVE' : 'STANDBY'}
+                                </span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-1 uppercase font-mono tracking-widest">
+                                {isGatewayActive ? 'NEURAL_TUNNEL_ESTABLISHED' : 'TRIGGER_SYSTEM_HANDSHAKE'}
+                            </p>
                         </div>
                     </div>
                     <div className="glass p-8 rounded-[2.5rem] border-slate-200 dark:border-slate-800 flex items-center gap-6 group cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-all">
@@ -266,7 +305,10 @@ export const Integrations: React.FC = () => {
                             <Globe className="text-emerald-500" />
                         </div>
                         <div>
-                            <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">Cloud Sync</h4>
+                            <div className="flex items-center gap-2">
+                                <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">Cloud Sync</h4>
+                                <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950">ONLINE</span>
+                            </div>
                             <p className="text-[10px] text-slate-500 mt-1 uppercase font-mono tracking-widest">Multi-Node Replication</p>
                         </div>
                     </div>
@@ -300,7 +342,7 @@ export const Integrations: React.FC = () => {
               {/* Category Selector */}
               <div className="lg:col-span-3 space-y-3">
                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 ml-2">Ingress Streams</p>
-                  <button onClick={() => setManualCategory('sales')} className={`w-full p-6 rounded-3xl border-2 flex items-center gap-4 transition-all ${manualCategory === 'sales' ? 'border-emerald-500 bg-emerald-500/10 shadow-lg' : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'}`}>
+                  <button onClick={() => setManualCategory('sales')} className={`w-full p-6 rounded-3xl border-2 flex items-center gap-4 transition-all ${manualCategory === 'sales' ? 'border-emerald-500 bg-emerald-50/10 shadow-lg' : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'}`}>
                       <BarChart3 className={manualCategory === 'sales' ? 'text-emerald-500' : 'text-slate-400'} />
                       <div className="text-left"><p className={`font-black uppercase tracking-tight ${manualCategory === 'sales' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}`}>Sales Inflow</p><p className="text-[9px] font-mono text-slate-500">REVENUE_DATA</p></div>
                   </button>
