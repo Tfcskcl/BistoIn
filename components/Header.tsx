@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { Bell, Search, X, Check, Moon, Sun, ChevronRight, Home } from 'lucide-react';
+import { Bell, Search, X, Check, Moon, Sun, ChevronRight, Home, Zap, RefreshCw } from 'lucide-react';
 import { authService } from '../services/authService';
 import { storageService } from '../services/storageService';
 import { AppNotification, AppView, User } from '../types';
+import { hasValidApiKey, openNeuralGateway } from '../services/geminiService';
 
 interface HeaderProps {
     theme: 'light' | 'dark';
@@ -16,30 +17,30 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ theme, toggleTheme, currentView, onChangeView, user }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [isAiActive, setIsAiActive] = useState(hasValidApiKey());
 
   useEffect(() => {
     if (user) {
-        // Fix: Call getNotifications with 1 argument
-        const list = storageService.getNotifications(user.id);
-        setNotifications(list);
+        setNotifications(storageService.getNotifications(user.id));
     }
-  }, [user]); // user is now a stable prop from App state
+
+    const checkAi = () => setIsAiActive(hasValidApiKey());
+    const interval = setInterval(checkAi, 3000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const handleMarkRead = (id: string) => {
       if (user) {
           storageService.markAsRead(user.id, id);
-          // Fix: Call getNotifications with 1 argument
           setNotifications(storageService.getNotifications(user.id));
       }
   };
 
   const handleMarkAllRead = () => {
       if (user) {
-          // Fix: Call markAllRead with 1 argument
           storageService.markAllRead(user.id);
-          // Fix: Call getNotifications with 1 argument
           setNotifications(storageService.getNotifications(user.id));
       }
   };
@@ -97,6 +98,23 @@ export const Header: React.FC<HeaderProps> = ({ theme, toggleTheme, currentView,
 
       {/* Right Section: Actions */}
       <div className="flex items-center gap-2 sm:gap-4">
+        {/* Neural Gateway Status (The Provision) */}
+        {(window as any).aistudio && (
+            <button 
+                onClick={() => openNeuralGateway()}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-2 border transition-all ${
+                    isAiActive 
+                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' 
+                    : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400 animate-pulse'
+                }`}
+            >
+                <Zap size={14} className={isAiActive ? 'fill-current' : ''} />
+                <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">
+                    {isAiActive ? 'AI Linked' : 'Connect AI'}
+                </span>
+            </button>
+        )}
+
         {/* Theme Toggle */}
         <button
             onClick={toggleTheme}

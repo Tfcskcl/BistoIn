@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { StatCard } from '../components/StatCard';
 import { User, AppView, UserRole, RecipeCard, Task, UnifiedSchema, CCTVAnalysisResult } from '../types';
 import { storageService, storageEvents, CCTVHistoryItem } from '../services/storageService';
-import { analyzeUnifiedRestaurantData, hasValidApiKey } from '../services/geminiService';
+import { analyzeUnifiedRestaurantData, hasValidApiKey, openNeuralGateway } from '../services/geminiService';
 import { trackingService } from '../services/trackingService';
 import { 
     Activity, AlertTriangle, DollarSign, ShoppingBag, TrendingUp, Sparkles, Brain, 
@@ -11,7 +11,7 @@ import {
     Zap, ChefHat, Star, Check, ListChecks, Plus, Trash2, ArrowUp, ArrowDown, 
     Timer, ScanLine, Download, Loader2, IndianRupee, MessageSquare, Heart, 
     UserPlus, Clock, Search, Wallet, HandCoins, ShieldAlert, Biohazard, Droplets, Flame, Cpu, Terminal,
-    Eye, History, ChevronRight, CheckCircle2
+    Eye, History, ChevronRight, CheckCircle2, Shield
 } from 'lucide-react';
 import { ResponsiveContainer, ComposedChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
@@ -50,49 +50,64 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
     const [loadingPulse, setLoadingPulse] = useState(false);
     const [tasks, setTasks] = useState<Task[]>([]);
     const [cctvHistory, setCctvHistory] = useState<CCTVHistoryItem[]>([]);
+    const [isAiActive, setIsAiActive] = useState(hasValidApiKey());
+
+    const load = async () => {
+        const savedTasks = storageService.getTasks(user.id) || [];
+        const history = storageService.getCCTVHistory(user.id) || [];
+        const aiValid = hasValidApiKey();
+        setTasks(savedTasks);
+        setCctvHistory(history);
+        setIsAiActive(aiValid);
+        
+        if (aiValid) {
+            setLoadingPulse(true);
+            try {
+                const data = await analyzeUnifiedRestaurantData({
+                    outlet: user.restaurantName,
+                    loc: user.location,
+                    recent_audits: history.slice(0, 3).map(h => ({
+                        efficiency: h.performance_scores.kitchen_efficiency,
+                        hygiene: h.performance_scores.hygiene_safety_score,
+                        violations: h.hygiene_audit?.violations.length || 0
+                    }))
+                });
+                setUnifiedData(data);
+            } catch (e) { 
+                console.error("Dashboard AI Fetch failed:", e);
+            } finally { 
+                setLoadingPulse(false); 
+            }
+        } else {
+            setUnifiedData({
+                summary: "Neural Engine Offline. Establishment handshake required for live intelligence summaries.",
+                health_score: 100,
+                recommendations: ["Initiate system handshake via the Connect button below."]
+            });
+        }
+    };
 
     useEffect(() => {
-        const load = async () => {
-            const savedTasks = storageService.getTasks(user.id) || [];
-            const history = storageService.getCCTVHistory(user.id) || [];
-            setTasks(savedTasks);
-            setCctvHistory(history);
-            
-            if (hasValidApiKey()) {
-                setLoadingPulse(true);
-                try {
-                    const data = await analyzeUnifiedRestaurantData({
-                        outlet: user.restaurantName,
-                        loc: user.location,
-                        recent_audits: history.slice(0, 3).map(h => ({
-                            efficiency: h.performance_scores.kitchen_efficiency,
-                            hygiene: h.performance_scores.hygiene_safety_score,
-                            violations: h.hygiene_audit?.violations.length || 0
-                        }))
-                    });
-                    setUnifiedData(data);
-                } catch (e) { 
-                    console.error("Dashboard AI Fetch failed:", e);
-                } finally { 
-                    setLoadingPulse(false); 
-                }
-            } else {
-                setUnifiedData({
-                    summary: "Neural Engine Offline. Establishment handshake required for live intelligence summaries.",
-                    health_score: 100,
-                    recommendations: ["Initiate system handshake via Data & Integrations."]
-                });
-            }
-        };
         load();
-
         const handleDataUpdate = () => {
             setTasks(storageService.getTasks(user.id) || []);
             setCctvHistory(storageService.getCCTVHistory(user.id) || []);
         };
         window.addEventListener(storageEvents.DATA_UPDATED, handleDataUpdate);
-        return () => window.removeEventListener(storageEvents.DATA_UPDATED, handleDataUpdate);
-    }, [user.id]);
+        
+        const interval = setInterval(() => {
+            const aiValid = hasValidApiKey();
+            if (aiValid !== isAiActive) {
+                setIsAiActive(aiValid);
+                load();
+            }
+        }, 3000);
+
+        return () => {
+            window.removeEventListener(storageEvents.DATA_UPDATED, handleDataUpdate);
+            clearInterval(interval);
+        };
+    }, [user.id, isAiActive]);
 
     const handleAddTask = (e: React.FormEvent) => {
         e.preventDefault();
@@ -141,10 +156,10 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                 <div className="flex gap-4">
                     <div className="glass px-4 py-2 rounded-xl flex items-center gap-3 border-slate-800">
                         <div className="relative flex h-2 w-2">
-                          <span className="neural-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          <span className={`neural-pulse absolute inline-flex h-full w-full rounded-full ${isAiActive ? 'bg-emerald-400' : 'bg-red-400'}`}></span>
+                          <span className={`relative inline-flex rounded-full h-2 w-2 ${isAiActive ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
                         </div>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vision Online</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vision {isAiActive ? 'Online' : 'Offline'}</span>
                     </div>
                 </div>
             </div>
@@ -233,12 +248,24 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                                     </div>
                                 ) : (
                                     <>
-                                        <div className="p-4 bg-slate-950/50 border border-slate-800 rounded-xl leading-relaxed text-slate-400 border-l-4 border-l-emerald-500">
-                                            <span className="text-emerald-500 font-bold tracking-widest text-[9px] block mb-2 uppercase">AI_CONSULTANT_CORE</span>
+                                        <div className={`p-4 bg-slate-950/50 border border-slate-800 rounded-xl leading-relaxed text-slate-400 border-l-4 ${isAiActive ? 'border-l-emerald-500' : 'border-l-red-500'}`}>
+                                            <span className={`${isAiActive ? 'text-emerald-500' : 'text-red-500'} font-bold tracking-widest text-[9px] block mb-2 uppercase`}>AI_CONSULTANT_CORE</span>
                                             "{unifiedData?.summary || 'Initializing real-time operational analysis module. Awaiting next telemetry sync from CCTV nodes.'}"
+                                            
+                                            {!isAiActive && (
+                                                <div className="mt-6 pt-4 border-t border-white/5 space-y-4">
+                                                    <p className="text-[10px] text-slate-500 italic">No API Key detected. Establish neural link to enable real-time tactical audits.</p>
+                                                    <button 
+                                                        onClick={() => openNeuralGateway()}
+                                                        className="w-full py-3 bg-white text-slate-900 font-black rounded-xl text-[10px] uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-xl flex items-center justify-center gap-2"
+                                                    >
+                                                        <Shield size={14} /> Establish Handshake
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
 
-                                        {trends && (
+                                        {isAiActive && trends && (
                                             <div className="space-y-4 animate-fade-in">
                                                 <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2">
                                                     <ScanLine size={12}/> Neural Drift Insights (vs Previous Session)
