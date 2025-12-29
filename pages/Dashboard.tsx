@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { StatCard } from '../components/StatCard';
 import { User, AppView, UserRole, RecipeCard, Task, UnifiedSchema, CCTVAnalysisResult } from '../types';
 import { storageService, storageEvents, CCTVHistoryItem } from '../services/storageService';
-import { analyzeUnifiedRestaurantData } from '../services/geminiService';
+import { analyzeUnifiedRestaurantData, hasValidApiKey } from '../services/geminiService';
 import { trackingService } from '../services/trackingService';
 import { 
     Activity, AlertTriangle, DollarSign, ShoppingBag, TrendingUp, Sparkles, Brain, 
@@ -53,25 +53,36 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
 
     useEffect(() => {
         const load = async () => {
-            setLoadingPulse(true);
             const savedTasks = storageService.getTasks(user.id) || [];
             const history = storageService.getCCTVHistory(user.id) || [];
             setTasks(savedTasks);
             setCctvHistory(history);
             
-            try {
-                // Pass some context to get a more relevant summary
-                const data = await analyzeUnifiedRestaurantData({
-                    outlet: user.restaurantName,
-                    loc: user.location,
-                    recent_audits: history.slice(0, 3).map(h => ({
-                        efficiency: h.performance_scores.kitchen_efficiency,
-                        hygiene: h.performance_scores.hygiene_safety_score,
-                        violations: h.hygiene_audit?.violations.length || 0
-                    }))
+            if (hasValidApiKey()) {
+                setLoadingPulse(true);
+                try {
+                    const data = await analyzeUnifiedRestaurantData({
+                        outlet: user.restaurantName,
+                        loc: user.location,
+                        recent_audits: history.slice(0, 3).map(h => ({
+                            efficiency: h.performance_scores.kitchen_efficiency,
+                            hygiene: h.performance_scores.hygiene_safety_score,
+                            violations: h.hygiene_audit?.violations.length || 0
+                        }))
+                    });
+                    setUnifiedData(data);
+                } catch (e) { 
+                    console.error("Dashboard AI Fetch failed:", e);
+                } finally { 
+                    setLoadingPulse(false); 
+                }
+            } else {
+                setUnifiedData({
+                    summary: "Neural Engine Offline. Establishment handshake required for live intelligence summaries.",
+                    health_score: 100,
+                    recommendations: ["Initiate system handshake via Data & Integrations."]
                 });
-                setUnifiedData(data);
-            } catch (e) { console.error(e); } finally { setLoadingPulse(false); }
+            }
         };
         load();
 

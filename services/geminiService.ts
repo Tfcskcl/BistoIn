@@ -3,7 +3,19 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SYSTEM_INSTRUCTION, CCTV_SYSTEM_PROMPT, UNIFIED_SYSTEM_PROMPT, MENU_ENGINEERING_PROMPT, STRATEGY_PROMPT } from "../constants";
 import { RecipeCard, SOP, StrategyReport, UnifiedSchema, CCTVAnalysisResult, User, MenuGenerationRequest, MenuItem, InventoryItem, KitchenDesign, MenuStructure } from "../types";
 
-export const hasValidApiKey = (): boolean => !!process.env.API_KEY;
+// Internal helper to safely get AI instance
+const getAI = () => {
+    const key = process.env.API_KEY;
+    if (!key || key === "UNDEFINED" || key.length < 5) {
+        throw new Error("NEURAL_GATEWAY_STANDBY");
+    }
+    return new GoogleGenAI({ apiKey: key });
+};
+
+export const hasValidApiKey = (): boolean => {
+    const key = process.env.API_KEY;
+    return !!key && key !== "UNDEFINED" && key.length > 5;
+};
 
 export const cleanAndParseJSON = <T>(text: string): T => {
     try {
@@ -22,7 +34,7 @@ export const analyzeStaffMovement = async (
     sopContext?: SOP,
     frames: string[] = [] 
 ): Promise<CCTVAnalysisResult> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
 
     const contentParts: any[] = [{ text: `${CCTV_SYSTEM_PROMPT}\nFootage: ${desc}\nZones: ${zones.join(', ')}` }];
     frames.forEach((f) => contentParts.push({ inlineData: { mimeType: 'image/jpeg', data: f.split(',')[1] || f } }));
@@ -40,7 +52,7 @@ export const analyzeStaffMovement = async (
 };
 
 export const generateChecklistFromAnalysis = async (analysis: CCTVAnalysisResult): Promise<string[]> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `Generate a prioritized operational task checklist based on these CCTV analysis findings: ${JSON.stringify(analysis)}`,
@@ -56,7 +68,7 @@ export const generateChecklistFromAnalysis = async (analysis: CCTVAnalysisResult
 };
 
 export const generateRevisedSOPFromAnalysis = async (analysis: CCTVAnalysisResult, currentSop?: SOP): Promise<SOP> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `Revise the standard operating procedure based on observed behavioral deviations and hygiene violations. 
@@ -105,7 +117,7 @@ export const generateRecipeCard = async (
     location?: string,
     persona?: string
 ): Promise<RecipeCard> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     
     const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
@@ -190,7 +202,7 @@ export const generateRecipeCard = async (
 };
 
 export const generateSOP = async (topic: string): Promise<SOP> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const res = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `Generate Standard Operating Procedure for: ${topic}`,
@@ -231,7 +243,7 @@ export const generateSOP = async (topic: string): Promise<SOP> => {
 };
 
 export const analyzeUnifiedRestaurantData = async (data: any): Promise<UnifiedSchema> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const res = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `${UNIFIED_SYSTEM_PROMPT}\nData: ${JSON.stringify(data)}`,
@@ -241,7 +253,7 @@ export const analyzeUnifiedRestaurantData = async (data: any): Promise<UnifiedSc
 };
 
 export const generateStrategy = async (u: User, q: string, c: string): Promise<StrategyReport> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -302,7 +314,7 @@ export const generateStrategy = async (u: User, q: string, c: string): Promise<S
 };
 
 export const generateMarketingImage = async (prompt: string, ar: string): Promise<string> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: { parts: [{ text: prompt }] },
@@ -315,7 +327,7 @@ export const generateMarketingImage = async (prompt: string, ar: string): Promis
 };
 
 export const generateMarketingVideo = async (imgs: string[], prompt: string, ar: string): Promise<string> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     let operation = await ai.models.generateVideos({
         model: 'veo-3.1-fast-generate-preview',
         prompt,
@@ -331,7 +343,7 @@ export const generateMarketingVideo = async (imgs: string[], prompt: string, ar:
 };
 
 export const generateMenu = async (req: MenuGenerationRequest): Promise<string> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     
     const prompt = `Task: Professional Restaurant Menu Engineering & Design.
     Restaurant: ${req.restaurantName}
@@ -391,7 +403,7 @@ export const generateMenu = async (req: MenuGenerationRequest): Promise<string> 
 };
 
 export const generateKitchenDesign = async (title: string, l: number, w: number, cuisine: string, reqs: string): Promise<KitchenDesign> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const res = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
         contents: `Architectural Kitchen Layout Task. Restaurant: ${title}. Dimensions: ${l}x${w}ft. Cuisine: ${cuisine}. Requirements: ${reqs}. Use percentages for x, y, w, h.`,
@@ -449,7 +461,7 @@ export const generateKitchenDesign = async (title: string, l: number, w: number,
 };
 
 export const generateKitchenWorkflow = async (desc: string): Promise<string> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `Architectural Kitchen Workflow Optimization. Pain Points: ${desc}. Return Markdown report.`,
@@ -462,13 +474,13 @@ export const generatePurchaseOrder = async (s: string, i: any[]): Promise<any> =
 };
 
 export const getChatResponse = async (h: any[], i: string): Promise<string> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const res = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: i });
     return res.text || '';
 };
 
 export const analyzeMenuEngineering = async (i: any[]): Promise<any[]> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const res = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `${MENU_ENGINEERING_PROMPT}\nData: ${JSON.stringify(i)}`,
@@ -478,7 +490,7 @@ export const analyzeMenuEngineering = async (i: any[]): Promise<any[]> => {
 };
 
 export const verifyLocationWithMaps = async (location: string): Promise<string> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAI();
     const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: `Verify if "${location}" is a valid restaurant location. Provide a short description.`,
