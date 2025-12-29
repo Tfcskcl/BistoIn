@@ -87,11 +87,15 @@ export const Integrations: React.FC = () => {
   }, [user]);
 
   const handleNeuralHandshake = async () => {
+      if (!(window as any).aistudio) {
+          alert("Handshake Interface standby: This feature requires the official AI Studio execution context. If you are in a local developer environment, please configure your process.env.API_KEY directly.");
+          return;
+      }
+      
       setIsVerifying(true);
       const success = await openNeuralGateway();
-      if (success) {
-          setIsGatewayActive(true);
-      }
+      // Guideline Rule: Assume success to mitigate potential race conditions in selection status.
+      setIsGatewayActive(true); 
       setIsVerifying(false);
   };
 

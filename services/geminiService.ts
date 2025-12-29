@@ -4,8 +4,8 @@ import { SYSTEM_INSTRUCTION, CCTV_SYSTEM_PROMPT, UNIFIED_SYSTEM_PROMPT, MENU_ENG
 import { RecipeCard, SOP, StrategyReport, UnifiedSchema, CCTVAnalysisResult, User, MenuGenerationRequest, MenuItem, InventoryItem, KitchenDesign, MenuStructure } from "../types";
 
 /**
- * Public provision to trigger the API Key selection dialog.
- * Should be called whenever a user needs to establish or change their Neural Link.
+ * Technical Provision: Triggers the AI Studio Key Selection Dialog.
+ * Used for "provision to select api key in live site".
  */
 export const openNeuralGateway = async (): Promise<boolean> => {
     if ((window as any).aistudio) {
@@ -18,7 +18,6 @@ export const openNeuralGateway = async (): Promise<boolean> => {
             return false;
         }
     }
-    console.warn("Nexus Gateway: AI Studio provider not detected in this environment.");
     return false;
 };
 
@@ -41,12 +40,16 @@ const getAI = () => {
     return new GoogleGenAI({ apiKey: String(key).trim() });
 };
 
+/**
+ * Global check for neural link health.
+ */
 export const hasValidApiKey = (): boolean => {
     const key = process.env.API_KEY;
-    return !!key && 
-           String(key).toLowerCase() !== "undefined" && 
-           String(key).toLowerCase() !== "null" && 
-           String(key).trim().length >= 8;
+    const isValid = !!key && 
+                    String(key).toLowerCase() !== "undefined" && 
+                    String(key).toLowerCase() !== "null" && 
+                    String(key).trim().length >= 8;
+    return isValid;
 };
 
 export const cleanAndParseJSON = <T>(text: string): T => {
@@ -71,7 +74,6 @@ export const analyzeStaffMovement = async (
     const contentParts: any[] = [{ text: `${CCTV_SYSTEM_PROMPT}\nFootage: ${desc}\nZones: ${zones.join(', ')}` }];
     frames.forEach((f) => contentParts.push({ inlineData: { mimeType: 'image/jpeg', data: f.split(',')[1] || f } }));
 
-    // Vision-heavy task uses Pro for higher fidelity
     const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
         contents: { parts: contentParts },
@@ -360,12 +362,12 @@ export const generateStrategy = async (u: User, q: string, c: string): Promise<S
     return cleanAndParseJSON<StrategyReport>(response.text || '{}');
 };
 
-export const generateMarketingImage = async (prompt: string, ar: string): Promise<string> => {
+export const generateMarketingImage = async (prompt: string, aspectRatio: string): Promise<string> => {
     const ai = getAI();
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: { parts: [{ text: prompt }] },
-        config: { imageConfig: { aspectRatio: ar as any } }
+        config: { imageConfig: { aspectRatio: aspectRatio as any } }
     });
     for (const part of response.candidates[0].content.parts) {
         if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
