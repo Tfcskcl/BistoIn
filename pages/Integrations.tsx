@@ -12,7 +12,7 @@ import {
 import { storageService, storageEvents } from '../services/storageService';
 import { ManualSalesEntry, ManualPurchaseEntry, ManualExpenseEntry, ManualManpowerEntry, User, IntegrationConfig } from '../types';
 import { authService } from '../services/authService';
-import { hasValidApiKey } from '../services/geminiService';
+import { hasValidApiKey, openNeuralGateway } from '../services/geminiService';
 
 interface IntegrationItem {
   id: string;
@@ -38,7 +38,6 @@ export const Integrations: React.FC = () => {
   // Neural Gateway Status
   const [isGatewayActive, setIsGatewayActive] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [hasStudioKey, setHasStudioKey] = useState(false);
 
   // Integration Config State
   const [configModal, setConfigModal] = useState<IntegrationItem | null>(null);
@@ -58,18 +57,12 @@ export const Integrations: React.FC = () => {
           if ((window as any).aistudio) {
               try {
                   selected = await (window as any).aistudio.hasSelectedApiKey();
-                  setHasStudioKey(selected);
               } catch (e) {}
           }
           
           // Environment key check
           const envValid = hasValidApiKey();
-          
-          if (selected || envValid) {
-              setIsGatewayActive(true);
-          } else {
-              setIsGatewayActive(false);
-          }
+          setIsGatewayActive(selected || envValid);
       };
 
       checkGateway();
@@ -95,27 +88,11 @@ export const Integrations: React.FC = () => {
 
   const handleNeuralHandshake = async () => {
       setIsVerifying(true);
-      
-      // Attempt Aistudio handshake if the object exists
-      if ((window as any).aistudio) {
-          try {
-              await (window as any).aistudio.openSelectKey();
-              // Per guidelines: Proceed assuming success to mitigate race condition
-              setIsGatewayActive(true);
-              setHasStudioKey(true);
-          } catch (err) {
-              console.error("Studio handshake failed", err);
-          } finally {
-              setIsVerifying(false);
-          }
-          return;
+      const success = await openNeuralGateway();
+      if (success) {
+          setIsGatewayActive(true);
       }
-
-      // Fallback for environment without aistudio provider (e.g. testing)
-      setTimeout(() => {
-          setIsGatewayActive(hasValidApiKey());
-          setIsVerifying(false);
-      }, 800);
+      setIsVerifying(false);
   };
 
   const handleOpenConfig = (item: IntegrationItem) => {

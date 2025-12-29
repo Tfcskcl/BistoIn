@@ -4,20 +4,21 @@ import { SYSTEM_INSTRUCTION, CCTV_SYSTEM_PROMPT, UNIFIED_SYSTEM_PROMPT, MENU_ENG
 import { RecipeCard, SOP, StrategyReport, UnifiedSchema, CCTVAnalysisResult, User, MenuGenerationRequest, MenuItem, InventoryItem, KitchenDesign, MenuStructure } from "../types";
 
 /**
- * Technical Provision: Triggers the AI Studio Key Selection Dialog.
- * Used for "provision to select api key in live site".
+ * Public provision to trigger the API Key selection dialog.
+ * Should be called whenever a user needs to establish or change their Neural Link.
  */
-export const openNeuralGateway = async () => {
+export const openNeuralGateway = async (): Promise<boolean> => {
     if ((window as any).aistudio) {
         try {
             await (window as any).aistudio.openSelectKey();
+            // Per guidelines: Assume success to mitigate race conditions
             return true;
         } catch (e) {
             console.error("Neural Gateway Handshake failed:", e);
             return false;
         }
     }
-    console.warn("AI Studio provider not found in this environment.");
+    console.warn("Nexus Gateway: AI Studio provider not detected in this environment.");
     return false;
 };
 
