@@ -43,7 +43,8 @@ export const storageService = {
     getItem: <T>(userId: string, key: string, defaultValue: T): T => {
         try {
             const stored = localStorage.getItem(getKey(userId, key));
-            return stored ? JSON.parse(stored) : defaultValue;
+            if (!stored || stored === "undefined" || stored === "null") return defaultValue;
+            return JSON.parse(stored) as T;
         } catch (e) { return defaultValue; }
     },
     setItem: (userId: string, key: string, data: any) => {
@@ -62,7 +63,14 @@ export const storageService = {
     seedDemoData: (userId: string) => {
         storageService.saveInventory(userId, MOCK_INV);
         storageService.saveTasks(userId, DEFAULT_TASKS);
-        storageService.saveSalesData(userId, MOCK_SALES_DATA);
+        // Link MOCK_SALES_DATA to the unified manual_sales key
+        storageService.saveManualSales(userId, MOCK_SALES_DATA.map((d, i) => ({
+            id: `mock_${i}`,
+            date: d.date,
+            revenue: d.revenue,
+            orderCount: d.items_sold,
+            channel: 'Walk-in'
+        })));
         ingredientService.seedDefaults(userId);
     },
     getOnboardingState: (userId: string): OnboardingState => storageService.getItem<OnboardingState>(userId, 'onboarding', { phaseIdx: 0, data: {}, completed: false }),
@@ -110,8 +118,10 @@ export const storageService = {
         if (idx >= 0) sops[idx] = sop; else sops.push(sop);
         storageService.setItem(userId, 'saved_sops', sops);
     },
-    getSalesData: (userId: string): any[] => storageService.getItem<any[]>(userId, 'sales', []),
-    saveSalesData: (userId: string, data: any[]) => storageService.setItem(userId, 'sales', data),
+    // Sales Data redirected to unified Manual Ingress key
+    getSalesData: (userId: string): ManualSalesEntry[] => storageService.getItem<ManualSalesEntry[]>(userId, 'manual_sales', []),
+    saveSalesData: (userId: string, data: ManualSalesEntry[]) => storageService.setItem(userId, 'manual_sales', data),
+    
     getSocialStats: (userId: string): SocialStats[] => storageService.getItem<SocialStats[]>(userId, 'social_stats', []),
     saveSocialStats: (userId: string, stats: SocialStats[]) => storageService.setItem(userId, 'social_stats', stats),
     getPOSChangeRequests: (userId: string): POSChangeRequest[] => storageService.getItem<POSChangeRequest[]>(userId, 'pos_requests', []),

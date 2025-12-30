@@ -1,7 +1,7 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { User, CCTVAnalysisResult, CCTVEvent, SOP, RecipeCard, AppView, BehavioralPattern, OperationalMetrics, HygieneViolation, Task, CameraFeed, CameraProvider, FacilityArea } from '../types';
-import { analyzeStaffMovement, generateChecklistFromAnalysis, generateRevisedSOPFromAnalysis, openNeuralGateway } from '../services/geminiService';
+import { analyzeStaffMovement, openNeuralGateway } from '../services/geminiService';
 import { storageService, storageEvents, dispatchDataUpdatedEvent } from '../services/storageService';
 import { 
     Video, Activity, AlertTriangle, PlayCircle, 
@@ -9,8 +9,9 @@ import {
     ShieldAlert, ScanLine, Utensils, Store, Coffee, 
     Box, ShieldCheck, Package, MapPin, ListChecks, 
     Gauge, MousePointer2, Download, Timer, Route, TrendingDown, Zap, CheckCircle2,
-    ClipboardList, FileText, CheckSquare, Plus, Save, ArrowRight, Clock, RefreshCw, HelpCircle, ChevronDown, BookOpen, ChefHat, History, Info, X, Search, Eye, Biohazard, Flame, Droplets, Printer, Footprints, Wallet, IndianRupee, HandCoins, Receipt, Camera, MonitorDot, Radio, Crosshair, Link, Network, Server, Key, Shield, Trash2, LayoutGrid, BarChart3, Fingerprint, Coins
+    ClipboardList, FileText, CheckSquare, Plus, Save, ArrowRight, Clock, RefreshCw, HelpCircle, ChevronDown, BookOpen, ChefHat, History, Info, X, Search, Eye, Biohazard, Flame, Droplets, Printer, Footprints, Wallet, IndianRupee, HandCoins, Receipt, Camera, MonitorDot, Radio, Crosshair, Link, Network, Server, Key, Shield, Trash2, LayoutGrid, BarChart3, Fingerprint, Coins, FileJson
 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface VideoFile {
     id: string;
@@ -66,6 +67,7 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
     const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisProgress, setAnalysisProgress] = useState(0);
+    const [timeFrame, setTimeFrame] = useState<'shift' | 'hour' | 'realtime'>('hour');
     
     const [isLiveMode, setIsLiveMode] = useState(false);
     const [stream, setStream] = useState<MediaStream | null>(null);
@@ -86,6 +88,14 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     const selectedVideo = videos.find(v => v.id === selectedVideoId);
+
+    const dwellChartData = useMemo(() => {
+        if (!selectedVideo?.analysis?.dwell_times) return [];
+        return Object.entries(selectedVideo.analysis.dwell_times).map(([name, value]) => ({
+            name,
+            seconds: value
+        }));
+    }, [selectedVideo]);
 
     useEffect(() => {
         const loadContext = () => {
@@ -172,7 +182,6 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
                 frames.push(canvas.toDataURL('image/jpeg', 0.6));
             }
         } else {
-            // Live Stream Capture
             for (let i = 0; i < count; i++) {
                 canvas.width = v.videoWidth || 1280;
                 canvas.height = v.videoHeight || 720;
@@ -200,8 +209,8 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
             
             setAnalysisProgress(50);
             const result = await analyzeStaffMovement(
-                `Comprehensive audit of ${targetName}. Focus on hygiene, cash movement, and staff patterns.`,
-                ['Kitchen', 'Service Area', 'Dining Area', 'Storage'],
+                `Staff movement analysis mission: Focus on patterns in the kitchen over the ${timeFrame === 'hour' ? 'last hour' : 'current shift'}. Identify high-traffic zones and calculate dwell times.`,
+                ['Prep Station', 'Cook Line', 'Wash Area', 'Plating Station', 'Pass'],
                 undefined,
                 undefined,
                 frames
@@ -225,10 +234,7 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
         } catch (err: any) {
             console.error("Analysis Error:", err);
             setIsAnalyzing(false);
-            if (err.message?.includes("NEURAL_GATEWAY_STANDBY")) {
-                alert("Audit failed: System requires a valid API Key. Please establish a link via Nexus Control.");
-                onChangeView(AppView.INTEGRATIONS);
-            } else if (err.message?.includes("NEURAL_LINK_EXPIRED") || err.message?.includes("entity was not found")) {
+            if (err.message?.includes("NEURAL_LINK_EXPIRED") || err.message?.includes("entity was not found")) {
                 alert("Auth Session Expired. Resetting Gateway Link...");
                 await openNeuralGateway();
             } else {
@@ -238,22 +244,7 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
     };
 
     const handleDownloadReport = (analysis: CCTVAnalysisResult, videoName: string) => {
-        const win = window.open('', '_blank');
-        if (!win) {
-            alert("Report Export Blocked. Please allow popups for this site to download neural audits.");
-            return;
-        }
-
-        const date = new Date().toLocaleString();
-        
-        // Safety checks for rendering
-        const efficiency = analysis.performance_scores?.kitchen_efficiency || 0;
-        const hygiene = analysis.performance_scores?.hygiene_safety_score || 0;
-        const integrity = analysis.performance_scores?.financial_integrity_score || 0;
-        const violations = analysis.hygiene_audit?.violations || [];
-        const cash = analysis.cash_movement;
-
-        win.document.write(`
+        const htmlContent = `
             <!DOCTYPE html>
             <html>
                 <head>
@@ -263,88 +254,64 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
                         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
                         body { font-family: 'Inter', sans-serif; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                         @page { margin: 15mm; size: A4; }
-                        .glass-print { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 12px; padding: 16px; }
-                        .score-tag { font-weight: 900; font-size: 1.875rem; line-height: 2.25rem; }
                     </style>
                 </head>
                 <body class="p-10 bg-white text-slate-900">
                     <div class="max-w-4xl mx-auto">
                         <div class="flex justify-between items-center border-b-4 border-slate-900 pb-8 mb-10">
                             <div>
-                                <h1 class="text-4xl font-black uppercase tracking-tighter">Neural Audit Artifact</h1>
-                                <p class="text-slate-500 font-bold uppercase tracking-widest text-xs mt-2">Vision Node 04 // Channel: ${videoName}</p>
+                                <h1 class="text-4xl font-black uppercase tracking-tighter">Movement & Efficiency Audit</h1>
+                                <p class="text-slate-500 font-bold uppercase tracking-widest text-xs mt-2">Vision Node 04 // ${videoName}</p>
                             </div>
                             <div class="text-right">
                                 <p class="text-[10px] font-black uppercase text-emerald-600 tracking-[0.3em] mb-1">Authenticated AI Synthesis</p>
                                 <p class="text-lg font-bold">${user.restaurantName}</p>
-                                <p class="text-[10px] text-slate-400 font-mono">${date}</p>
                             </div>
                         </div>
-
-                        <div class="grid grid-cols-3 gap-6 mb-10">
-                            <div class="glass-print">
-                                <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Efficiency Node</p>
-                                <p class="score-tag text-emerald-600">${efficiency}%</p>
-                            </div>
-                            <div class="glass-print">
-                                <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Hygiene Shield</p>
-                                <p class="score-tag text-blue-600">${hygiene}%</p>
-                            </div>
-                            <div class="glass-print">
-                                <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Financial Check</p>
-                                <p class="score-tag text-indigo-600">${integrity}%</p>
-                            </div>
+                        <div class="p-6 bg-slate-50 rounded-2xl border-l-4 border-emerald-500 mb-10">
+                            <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Executive Summary</h3>
+                            <p class="text-sm italic font-medium">"${analysis.summary_report}"</p>
                         </div>
-
-                        <div class="mb-10 p-6 bg-slate-50 rounded-2xl border-l-4 border-emerald-500">
-                            <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Neural Executive Summary</h3>
-                            <p class="text-sm italic leading-relaxed text-slate-700 font-medium">"${analysis.summary_report || 'Analysis parameters incomplete.'}"</p>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-10 mb-10">
+                        <div class="grid grid-cols-2 gap-10">
                             <div>
-                                <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 border-b-2 pb-1">Hygiene Deviations</h3>
-                                <div class="space-y-4">
-                                    ${violations.length === 0 ? '<p class="text-sm text-emerald-600 font-bold">✓ Zero behavioral hygiene violations detected.</p>' : 
-                                        violations.map(v => `
-                                        <div class="p-3 bg-slate-50 rounded-lg border-l-4 ${v.severity === 'high' ? 'border-red-500' : 'border-amber-500'}">
-                                            <p class="text-[10px] font-black uppercase">${v.type.replace('_', ' ')}</p>
-                                            <p class="text-xs text-slate-600 mt-1">${v.description}</p>
-                                        </div>
-                                    `).join('')}
-                                </div>
+                                <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 border-b-2 pb-1">Hotspot Distribution</h3>
+                                ${analysis.staff_movement_summary?.high_traffic_zones.map(z => `<div class="mb-2 p-2 bg-slate-50 rounded text-xs font-bold uppercase">${z}</div>`).join('')}
                             </div>
                             <div>
-                                <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 border-b-2 pb-1">Fiscal Inflow Summary</h3>
-                                <div class="space-y-2">
-                                    <div class="flex justify-between text-xs font-bold border-b pb-1"><span>Total Received</span><span>₹${cash?.total_received || 0}</span></div>
-                                    <div class="flex justify-between text-xs font-bold border-b pb-1"><span>Withdrawals</span><span class="text-red-600">₹${cash?.total_withdrawals || 0}</span></div>
-                                    <div class="flex justify-between text-xs font-bold border-b pb-1"><span>Discrepancies</span><span class="${cash?.drawer_discrepancies ? 'text-red-600' : 'text-emerald-600'}">${cash?.drawer_discrepancies || 0}</span></div>
-                                </div>
-                                <div class="mt-6">
-                                    <p class="text-[9px] font-black uppercase text-slate-400 mb-2">Audit Footprint (Patterns)</p>
-                                    ${(analysis.staff_movement_summary?.patterns || []).filter(p => p.detected).map(p => `
-                                        <div class="flex justify-between text-[10px] mb-2 p-2 bg-slate-50 rounded">
-                                            <span class="font-bold text-slate-700">${p.name}</span>
-                                            <span class="text-emerald-600 font-black">DETECTED</span>
-                                        </div>
-                                    `).join('') || '<p class="text-[10px] text-slate-400 italic">No abnormal patterns detected.</p>'}
-                                </div>
+                                <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 border-b-2 pb-1">Dwell Time Matrix</h3>
+                                ${Object.entries(analysis.dwell_times || {}).map(([z, t]) => `<div class="flex justify-between text-xs mb-2"><span>${z}</span><span class="font-bold">${t}s</span></div>`).join('')}
                             </div>
                         </div>
-
-                        <div class="pt-10 border-t-2 border-slate-100 text-[10px] text-slate-400 font-bold uppercase tracking-widest flex justify-between">
-                            <div>Encrypted Identification Hash: ${Math.random().toString(36).substring(7).toUpperCase()}</div>
-                            <div>BistroConnect Intelligence Systems • NODE_04</div>
+                        <div class="mt-20 pt-10 border-t border-slate-100 text-[9px] font-bold text-slate-400 uppercase text-center">
+                            Authorized Operational Artifact // Generated by BistroConnect Intelligence
                         </div>
                     </div>
-                    <script>
-                        window.onload = function() { window.print(); };
-                    </script>
                 </body>
             </html>
-        `);
-        win.document.close();
+        `;
+
+        const blob = new Blob([htmlContent], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `BistroVision_Audit_${videoName.replace(/\s+/g, '_')}_${Date.now()}.html`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleDownloadRawData = (analysis: CCTVAnalysisResult, videoName: string) => {
+        const dataStr = JSON.stringify(analysis, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Telemetry_${videoName.replace(/\s+/g, '_')}_${Date.now()}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     };
 
     const toggleLiveMode = async () => {
@@ -410,9 +377,14 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
                     <div className="col-span-1 md:col-span-2 glass p-6 rounded-3xl border-slate-200 dark:border-slate-800 flex flex-col justify-center">
                         <div className="flex justify-between items-center mb-4">
                             <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Neural Health Pass</h4>
-                            <button onClick={() => handleDownloadReport(analysis, videoName)} className="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg hover:bg-emerald-500/20 transition-all border border-emerald-500/20" title="Download Audit Spec Sheet">
-                                <Printer size={14}/>
-                            </button>
+                            <div className="flex gap-2">
+                                <button onClick={() => handleDownloadRawData(analysis, videoName)} className="p-2 bg-indigo-500/10 text-indigo-500 rounded-lg hover:bg-indigo-500/20 transition-all border border-indigo-500/20" title="Download Raw Telemetry">
+                                    <FileJson size={14}/>
+                                </button>
+                                <button onClick={() => handleDownloadReport(analysis, videoName)} className="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg hover:bg-emerald-500/20 transition-all border border-emerald-500/20" title="Download Audit Report">
+                                    <Download size={14}/>
+                                </button>
+                            </div>
                         </div>
                         <div className="flex justify-between items-center px-2">
                             <ScoreCircle score={analysis.performance_scores.kitchen_efficiency} label="Efficiency" color="text-emerald-500" />
@@ -420,14 +392,51 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
                             <ScoreCircle score={analysis.performance_scores.financial_integrity_score || 0} label="Integrity" color="text-indigo-500" />
                         </div>
                     </div>
-                    <div className="col-span-1 md:col-span-3 glass p-6 rounded-3xl border-slate-200 dark:border-slate-800 bg-emerald-500/5 border-emerald-500/20">
+                    <div className="col-span-1 md:col-span-3 glass p-6 rounded-3xl border-slate-200 dark:border-slate-800 bg-emerald-500/5 border-emerald-500/20 relative">
                         <h4 className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-2 flex items-center gap-2"><Sparkles size={12}/> AI Auditor Summary</h4>
                         <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">"{analysis.summary_report}"</p>
+                        <div className="absolute bottom-6 right-6 flex items-center gap-2">
+                            <Clock size={12} className="text-slate-400"/>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase">Analysis Period: {timeFrame === 'hour' ? 'Last 60 mins' : 'Real-time Pulse'}</span>
+                        </div>
                     </div>
                 </div>
+
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2 glass p-6 rounded-3xl border-slate-200 dark:border-slate-800 h-full">
+                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2"><BarChart3 size={14} className="text-indigo-500"/> Zone Hotspot Matrix (Mean Dwell Time)</h4>
+                        <div className="h-[250px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={dwellChartData} layout="vertical" margin={{ left: 20 }}>
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} strokeOpacity={0.1} />
+                                    <XAxis type="number" hide />
+                                    <YAxis 
+                                        dataKey="name" 
+                                        type="category" 
+                                        axisLine={false} 
+                                        tickLine={false} 
+                                        fontSize={10} 
+                                        fontWeight="bold" 
+                                        stroke="#94a3b8" 
+                                        width={80}
+                                    />
+                                    <Tooltip 
+                                        cursor={{ fill: 'transparent' }}
+                                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px' }}
+                                        labelStyle={{ color: '#fff', fontSize: '10px', fontWeight: 'bold' }}
+                                    />
+                                    <Bar dataKey="seconds" radius={[0, 4, 4, 0]}>
+                                        {dwellChartData.map((entry, index) => (
+                                            <Cell key={index} fill={entry.seconds > 300 ? '#ef4444' : '#6366f1'} fillOpacity={0.8} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                    
                     <div className="glass p-6 rounded-3xl border-slate-200 dark:border-slate-800 h-full">
-                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2"><Footprints size={14} className="text-blue-500"/> Workflow Patterns</h4>
+                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2"><Footprints size={14} className="text-blue-500"/> Movement Patterns</h4>
                         <div className="space-y-4">
                             <div className="flex justify-between items-end border-b border-slate-100 dark:border-slate-800 pb-3">
                                 <div><p className="text-2xl font-black dark:text-white">{analysis.staff_movement_summary?.total_trips}</p><p className="text-[9px] text-slate-400 uppercase font-bold">Total Trips</p></div>
@@ -446,39 +455,6 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
                             </div>
                         </div>
                     </div>
-                    <div className="glass p-6 rounded-3xl border-slate-200 dark:border-slate-800 h-full">
-                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2"><Biohazard size={14} className="text-red-500"/> Hygiene Violations</h4>
-                        <div className="space-y-3">
-                            {(analysis.hygiene_audit?.violations || []).length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-10 opacity-30">
-                                    <ShieldCheck size={40} className="text-emerald-500 mb-2" />
-                                    <p className="text-[10px] font-black uppercase tracking-widest">Zero Violations</p>
-                                </div>
-                            ) : (
-                                analysis.hygiene_audit?.violations.map((v, i) => (
-                                    <div key={i} className={`p-4 rounded-2xl border-l-4 ${v.severity === 'high' ? 'border-l-red-500 bg-red-50/5' : 'border-l-amber-500 bg-amber-500/5'} border-slate-100 dark:border-slate-800`}>
-                                        <div className="flex justify-between items-start mb-1">
-                                            <h5 className="text-[10px] font-black dark:text-white uppercase">{v.type.replace('_', ' ')}</h5>
-                                            <span className={`text-[8px] font-black uppercase px-1.5 rounded ${v.severity === 'high' ? 'bg-red-500 text-white' : 'bg-amber-500 text-black'}`}>{v.severity}</span>
-                                        </div>
-                                        <p className="text-[10px] text-slate-500 leading-relaxed mb-2">{v.description}</p>
-                                        <div className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 uppercase"><ArrowRight size={10}/> {v.action_required}</div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
-                    <div className="glass p-6 rounded-3xl border-slate-200 dark:border-slate-800 h-full">
-                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2"><IndianRupee size={14} className="text-emerald-500"/> Cash Flow Audit</h4>
-                        <div className="space-y-4">
-                            <div className="p-4 bg-slate-900 rounded-2xl text-white">
-                                <div className="flex justify-between items-center mb-4">
-                                    <div><p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Est. Recieved</p><p className="text-2xl font-black">₹{analysis.cash_movement?.total_received}</p></div>
-                                    <div className="text-right"><p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Withdrawals</p><p className="text-lg font-bold text-red-400">₹{analysis.cash_movement?.total_withdrawals}</p></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         );
@@ -493,8 +469,12 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
                     <div><h1 className="font-bold text-lg dark:text-white uppercase tracking-tighter">BistroVision Hub</h1><p className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">// INTEGRATED_NVR_CONTROL</p></div>
                 </div>
                 <div className="flex gap-2">
+                    <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-lg flex border border-slate-200 dark:border-slate-700 mr-2">
+                        <button onClick={() => setTimeFrame('realtime')} className={`px-3 py-1 rounded text-[10px] font-black uppercase transition-all ${timeFrame === 'realtime' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-500'}`}>Live Pulse</button>
+                        <button onClick={() => setTimeFrame('hour')} className={`px-3 py-1 rounded text-[10px] font-black uppercase transition-all ${timeFrame === 'hour' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'text-slate-500'}`}>Last 1 Hour</button>
+                    </div>
                     <button onClick={toggleLiveMode} className={`px-4 py-2 rounded-lg text-xs font-bold flex gap-2 items-center transition-all ${isLiveMode ? 'bg-red-600 text-white shadow-lg animate-pulse' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}><Radio size={14}/> {isLiveMode ? 'LOCAL ACTIVE' : 'LOCAL ACCESS'}</button>
-                    <button onClick={() => setShowFeedModal(true)} className="px-4 py-2 bg-slate-950 dark:bg-white text-white dark:text-slate-950 rounded-lg text-xs font-bold flex gap-2 items-center hover:scale-105 transition-all shadow-lg"><Network size={14}/> Add Network Feed</button>
+                    <button onClick={() => setShowFeedModal(true)} className="px-4 py-2 bg-slate-950 dark:bg-white text-white dark:text-slate-950 rounded-lg text-xs font-bold flex gap-2 items-center hover:scale-105 transition-all shadow-lg"><Network size={14}/> Add Feed</button>
                     <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold flex gap-2 items-center hover:bg-emerald-700 transition-all"><Upload size={14}/> Ingest Archive</button>
                     <input type="file" ref={fileInputRef} className="hidden" accept="video/*" multiple onChange={handleVideoUpload} />
                 </div>
@@ -529,8 +509,8 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
                     <div className="flex-1 overflow-hidden bg-slate-950 rounded-xl border border-slate-800 relative shadow-2xl flex flex-col">
                         <div className="flex border-b border-slate-800 bg-slate-900/50">
                             <button onClick={() => setActiveTab('feed')} className={`px-6 py-3 text-[10px] font-black uppercase tracking-widest border-b-2 ${activeTab === 'feed' ? 'border-emerald-500 text-white bg-white/5' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>Visual Feed</button>
-                            <button onClick={() => setActiveTab('report')} className={`px-6 py-3 text-[10px] font-black uppercase tracking-widest border-b-2 ${activeTab === 'report' ? 'border-emerald-500 text-white bg-white/5' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>Neural Audit Report</button>
-                            <button onClick={() => setActiveTab('logs')} className={`px-6 py-3 text-[10px] font-black uppercase tracking-widest border-b-2 ${activeTab === 'logs' ? 'border-emerald-500 text-white bg-white/5' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>System Logs</button>
+                            <button onClick={() => setActiveTab('report')} className={`px-6 py-3 text-[10px] font-black uppercase tracking-widest border-b-2 ${activeTab === 'report' ? 'border-emerald-500 text-white bg-white/5' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>Movement Audit</button>
+                            <button onClick={() => setActiveTab('logs')} className={`px-6 py-3 text-[10px] font-black uppercase tracking-widest border-b-2 ${activeTab === 'logs' ? 'border-emerald-500 text-white bg-white/5' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>Live Logs</button>
                         </div>
                         <div className="flex-1 relative overflow-y-auto custom-scrollbar">
                             {activeTab === 'feed' ? (
@@ -542,7 +522,7 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
                                                 <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[2px] flex items-center justify-center z-20">
                                                     <div className="glass p-8 rounded-[2.5rem] border-slate-200/20 flex flex-col items-center gap-6 text-center max-w-sm animate-scale-in">
                                                         <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/20"><ScanLine className="text-emerald-500" size={32}/></div>
-                                                        <div><h4 className="text-white font-black uppercase tracking-tight text-xl">Ready for Live Audit</h4><p className="text-xs text-slate-400 mt-2">Capture current frames for hygiene and workflow analysis.</p></div>
+                                                        <div><h4 className="text-white font-black uppercase tracking-tight text-xl">Ready for Movement Pass</h4><p className="text-xs text-slate-400 mt-2">Initialize analysis mission for the {timeFrame === 'hour' ? 'last hour' : 'current shift'}.</p></div>
                                                         <button onClick={handleAnalyzeCurrent} className="w-full py-4 bg-emerald-600 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-emerald-500 transition-all flex items-center justify-center gap-2"><Sparkles size={14}/> Start Neural Pass</button>
                                                     </div>
                                                 </div>
@@ -553,9 +533,9 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
                                             {selectedVideo.isExternalFeed ? (
                                                 <div className="flex flex-col items-center justify-center gap-6 text-center animate-fade-in p-12">
                                                     <div className="relative"><Server size={80} className="text-slate-800 animate-pulse" /><div className="absolute -bottom-2 -right-2 bg-indigo-600 p-2 rounded-lg border-2 border-slate-950"><Network size={20} className="text-white"/></div></div>
-                                                    <p className="text-white font-black text-xl uppercase tracking-tighter">BistroCloud Neural Tunnel Active</p>
+                                                    <p className="text-white font-black text-xl uppercase tracking-tighter">Neural Stream Tunnel Active</p>
                                                     {!selectedVideo.analysis && !isAnalyzing && (
-                                                         <button onClick={handleAnalyzeCurrent} className="px-8 py-3 bg-indigo-600 text-white font-black rounded-xl text-[10px] uppercase tracking-widest hover:bg-indigo-500 transition-all shadow-xl">Audit This Stream</button>
+                                                         <button onClick={handleAnalyzeCurrent} className="px-8 py-3 bg-indigo-600 text-white font-black rounded-xl text-[10px] uppercase tracking-widest hover:bg-indigo-500 transition-all shadow-xl">Audit Last 60 Mins</button>
                                                     )}
                                                 </div>
                                             ) : (
@@ -565,20 +545,20 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
                                                 <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[2px] flex items-center justify-center z-20">
                                                     <div className="glass p-8 rounded-[2.5rem] border-slate-200/20 flex flex-col items-center gap-6 text-center max-w-sm animate-scale-in">
                                                         <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/20"><ScanLine className="text-emerald-500" size={32}/></div>
-                                                        <div><h4 className="text-white font-black uppercase tracking-tight text-xl">Archive Ready</h4><p className="text-xs text-slate-400 mt-2">Neural engine can extract hygiene scores, staff patterns, and financial discrepancies from this footage.</p></div>
+                                                        <div><h4 className="text-white font-black uppercase tracking-tight text-xl">Archive Ready</h4><p className="text-xs text-slate-400 mt-2">Extract movement patterns and traffic zones from archive footage.</p></div>
                                                         <button onClick={handleAnalyzeCurrent} className="w-full py-4 bg-emerald-600 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-emerald-500 transition-all flex items-center justify-center gap-2"><Sparkles size={14}/> Run Neural Audit Pass</button>
                                                     </div>
                                                 </div>
                                             )}
                                         </div>
                                     ) : (
-                                        <div className="text-slate-500 flex flex-col items-center justify-center h-full gap-4 text-center"><MonitorDot size={48} className="text-slate-800" /><p className="text-xs font-black uppercase tracking-[0.4em] opacity-30">Neural Video Gateway Standby</p></div>
+                                        <div className="text-slate-500 flex flex-col items-center justify-center h-full gap-4 text-center"><MonitorDot size={48} className="text-slate-800" /><p className="text-xs font-black uppercase tracking-[0.4em] opacity-30">Vision Gateway Standby</p></div>
                                     )}
                                     {isAnalyzing && (
                                         <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 animate-fade-in">
                                             <div className="text-center w-full max-w-md px-10">
                                                 <div className="relative mb-8 mx-auto w-24 h-24"><Loader2 size={96} className="animate-spin text-emerald-500/20" /><Activity size={40} className="absolute inset-0 m-auto text-emerald-500 animate-pulse" /></div>
-                                                <h4 className="text-white font-black text-2xl uppercase tracking-tighter mb-2">Analyzing Behavioral Matrix</h4>
+                                                <h4 className="text-white font-black text-2xl uppercase tracking-tighter mb-2">Analyzing Movement Mission</h4>
                                                 <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden mt-8"><div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${analysisProgress}%` }}></div></div>
                                             </div>
                                         </div>
