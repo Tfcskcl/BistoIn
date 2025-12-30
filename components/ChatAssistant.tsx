@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageCircle, X, Send, Loader2, Sparkles, Bot, Zap, Key, ShieldCheck } from 'lucide-react';
 import { getChatResponse, hasValidApiKey, openNeuralGateway } from '../services/geminiService';
@@ -23,14 +22,13 @@ export const ChatAssistant: React.FC = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
-    // Initialization Flow logic
     useEffect(() => {
         const active = hasValidApiKey();
         setIsAiActive(active);
         
         if (active) {
             setMessages([
-                { id: '1', role: 'assistant', text: 'Neural Link Established. I am Gemini AI, initialized inside BistroConnect Intelligence. How shall we optimize your operations today?' }
+                { id: '1', role: 'assistant', text: "Namaste! I'm your BistroConnect Value Assistant. To help you choose the best plan and calculate your monthly savings, could you please tell me: \n\n1. How many outlets do you currently manage? \n2. What is your average monthly sales per outlet? \n3. What is the biggest headache in your kitchen right now (wastage, staff errors, or low profit)?" }
             ]);
         } else {
             setMessages([
@@ -42,7 +40,6 @@ export const ChatAssistant: React.FC = () => {
     useEffect(() => {
         if (isOpen) scrollToBottom();
         
-        // Polling for key injection from platform
         const interval = setInterval(() => {
             const active = hasValidApiKey();
             if (active && !isAiActive) setIsAiActive(true);
@@ -68,7 +65,6 @@ export const ChatAssistant: React.FC = () => {
             const errorMsg: Message = { id: (Date.now() + 1).toString(), role: 'assistant', text: `Handshake Failed: ${error.message}` };
             setMessages(prev => [...prev, errorMsg]);
             
-            // If the error indicates a bad key, reset active state to prompt re-selection
             if (error.message.includes("NEURAL_SESSION_RESET")) {
                 setIsAiActive(false);
             }
@@ -80,7 +76,6 @@ export const ChatAssistant: React.FC = () => {
     const handleConnectInChat = async () => {
         const success = await openNeuralGateway();
         if (success) {
-            // MANDATORY: Assume success immediately after triggering openSelectKey
             setIsAiActive(true);
             setMessages(prev => [
                 ...prev, 
@@ -94,14 +89,14 @@ export const ChatAssistant: React.FC = () => {
             {isOpen && (
                 <div className="mb-4 w-80 sm:w-96 h-[500px] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden animate-scale-in origin-bottom-right transition-colors duration-200">
                     {/* Header */}
-                    <div className="p-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white flex justify-between items-center shadow-lg">
+                    <div className="p-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white flex justify-between items-center shadow-lg">
                         <div className="flex items-center gap-3">
                             <div className="p-1.5 bg-white/20 rounded-full backdrop-blur-sm border border-white/20">
                                 <Bot size={20} className="text-white" />
                             </div>
                             <div>
-                                <h3 className="font-bold text-sm leading-none flex items-center gap-1.5 uppercase tracking-tighter">Bistro AI <span className={`w-1.5 h-1.5 rounded-full ${isAiActive ? 'bg-emerald-400' : 'bg-red-400'}`}></span></h3>
-                                <span className="text-[10px] text-indigo-100 opacity-80 uppercase tracking-widest font-black">Node 04 // Live</span>
+                                <h3 className="font-bold text-sm leading-none flex items-center gap-1.5 uppercase tracking-tighter">Value Assistant <span className={`w-1.5 h-1.5 rounded-full ${isAiActive ? 'bg-emerald-400' : 'bg-red-400'}`}></span></h3>
+                                <span className="text-[10px] text-emerald-100 opacity-80 uppercase tracking-widest font-black">Pricing Expert // Live</span>
                             </div>
                         </div>
                         <button onClick={toggleChat} className="hover:bg-white/20 p-1.5 rounded-full transition-colors">
@@ -115,8 +110,8 @@ export const ChatAssistant: React.FC = () => {
                             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
                                 <div className={`max-w-[85%] p-3.5 rounded-2xl text-sm shadow-sm ${
                                     msg.role === 'user' 
-                                    ? 'bg-indigo-600 text-white rounded-br-none' 
-                                    : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-bl-none leading-relaxed'
+                                    ? 'bg-emerald-600 text-white rounded-br-none' 
+                                    : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-bl-none whitespace-pre-wrap leading-relaxed'
                                 }`}>
                                     {msg.text}
                                     {!isAiActive && msg.id === '1' && (
@@ -134,9 +129,9 @@ export const ChatAssistant: React.FC = () => {
                             <div className="flex justify-start">
                                 <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl rounded-bl-none border border-slate-200 dark:border-slate-700 shadow-sm">
                                     <div className="flex gap-1">
-                                        <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                        <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                                        <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                                     </div>
                                 </div>
                             </div>
@@ -147,20 +142,20 @@ export const ChatAssistant: React.FC = () => {
                     {/* Input */}
                     <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
                         {isAiActive ? (
-                            <div className="flex gap-2 items-center bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-indigo-500/50 transition-all">
+                            <div className="flex gap-2 items-center bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-emerald-500/50 transition-all">
                                 <input 
                                     type="text" 
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                                    placeholder="Optimize layout, analyze SOPs..."
+                                    placeholder="e.g. Which plan is better for 2 cloud kitchens?"
                                     className="flex-1 px-3 py-2 bg-transparent border-none text-sm focus:ring-0 outline-none text-slate-800 dark:text-white placeholder-slate-400"
                                     autoFocus
                                 />
                                 <button 
                                     onClick={handleSend}
                                     disabled={!input.trim() || loading}
-                                    className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-sm"
+                                    className="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 shadow-sm"
                                 >
                                     {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                                 </button>
@@ -178,7 +173,7 @@ export const ChatAssistant: React.FC = () => {
 
             <button 
                 onClick={toggleChat}
-                className={`group relative flex items-center justify-center w-14 h-14 rounded-full shadow-xl hover:shadow-2xl transition-all hover:scale-105 active:scale-95 border-2 ${isAiActive ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-red-600 border-red-500 text-white animate-pulse'}`}
+                className={`group relative flex items-center justify-center w-14 h-14 rounded-full shadow-xl hover:shadow-2xl transition-all hover:scale-105 active:scale-95 border-2 ${isAiActive ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-red-600 border-red-500 text-white animate-pulse'}`}
             >
                 {isOpen ? (
                     <X size={28} />

@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { PlanType, User, PlanConfig } from '../types';
-import { Check, Loader2, Wallet, Plus, Package, ShoppingBag } from 'lucide-react';
+import { Check, Loader2, Wallet, Plus, Package, ShoppingBag, TrendingUp, IndianRupee, Zap, ShieldCheck, Sparkles, Building2, CreditCard, Lock, Shield, Globe } from 'lucide-react';
 import { paymentService } from '../services/paymentService';
 import { storageService } from '../services/storageService';
-import { PACKAGES } from '../constants';
+import { PACKAGES, PLANS as SYSTEM_PLANS } from '../constants';
 
 interface BillingProps {
     user: User;
@@ -14,11 +14,9 @@ interface BillingProps {
 export const Billing: React.FC<BillingProps> = ({ user, onUpgrade }) => {
   const [processingPlan, setProcessingPlan] = useState<PlanType | null>(null);
   const [processingPackage, setProcessingPackage] = useState<string | null>(null);
-  const [currentPlans, setCurrentPlans] = useState<Record<PlanType, PlanConfig> | null>(null);
   const [invoices, setInvoices] = useState<any[]>([]);
 
   useEffect(() => {
-    setCurrentPlans(storageService.getPlans());
     setInvoices(storageService.getInvoices(user.id));
   }, [user.id]);
 
@@ -38,19 +36,11 @@ export const Billing: React.FC<BillingProps> = ({ user, onUpgrade }) => {
                   period: 'Monthly'
               });
               
-              if (targetPlan !== PlanType.ENTERPRISE) {
-                  onUpgrade(targetPlan);
-                  // Ops Manager usually implies unlimited or high quota
-                  if (targetPlan === PlanType.OPS_MANAGER) {
-                      storageService.updateQuotas(user.id, 9999, 9999);
-                  }
-              } else {
-                  alert("Enterprise request received. Our sales team will contact you shortly.");
-              }
+              onUpgrade(targetPlan);
               setProcessingPlan(null);
           },
           (error) => {
-              if (error !== "Payment process cancelled") alert(error);
+              if (!error.includes("cancelled")) alert(error);
               setProcessingPlan(null);
           }
       );
@@ -60,12 +50,10 @@ export const Billing: React.FC<BillingProps> = ({ user, onUpgrade }) => {
       setProcessingPackage(pkgId);
       await paymentService.initiatePayment(
           user,
-          PlanType.FREE, // Using FREE type for one-time purchases
+          PlanType.FREE, 
           price,
           (paymentId) => {
-              // Add Quota
               storageService.updateQuotas(user.id, recipeQty, sopQty);
-              
               storageService.addInvoice(user.id, {
                   id: paymentId,
                   date: new Date().toISOString(),
@@ -77,142 +65,177 @@ export const Billing: React.FC<BillingProps> = ({ user, onUpgrade }) => {
               window.location.reload(); 
           },
           (error) => {
-              if (error !== "Payment process cancelled") alert(error);
+              if (!error.includes("cancelled")) alert(error);
               setProcessingPackage(null);
           }
       );
   };
 
-  if (!currentPlans) return <div className="p-8 text-center text-slate-500"><Loader2 className="animate-spin inline" /> Loading...</div>;
-
   return (
-    <div className="space-y-12 animate-fade-in relative pb-16">
-        <div className="text-center max-w-2xl mx-auto">
-            <h2 className="text-3xl font-bold text-slate-900 dark:text-white">Plans & Quotas</h2>
-            <p className="text-slate-500 dark:text-slate-400 mt-2">Pay as you go or subscribe for unlimited access.</p>
+    <div className="space-y-12 animate-fade-in relative pb-24 max-w-7xl mx-auto">
+        <div className="text-center space-y-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-4">
+                <ShieldCheck size={12}/> Secure Production Node // Node_04
+            </div>
+            <h1 className="text-5xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">ROI & DEPLOYMENT SCALE</h1>
+            <p className="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto text-lg font-medium">Provision the intelligence capacity required for your operations. All plans include 24/7 Vision Monitoring.</p>
             
-            {/* Quota Wallet */}
-            <div className="mt-6 flex justify-center gap-4">
-                <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 rounded-xl p-4 min-w-[150px]">
-                    <p className="text-xs text-emerald-800 dark:text-emerald-400 font-bold uppercase mb-1">Recipe Quota</p>
-                    <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{user.recipeQuota}</p>
+            <div className="mt-12 flex flex-wrap justify-center gap-6">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] p-8 min-w-[240px] shadow-sm group hover:border-emerald-500/50 transition-all">
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1 flex items-center gap-2"><Sparkles size={12}/> Recipe Quota</p>
+                    <p className="text-5xl font-black text-slate-900 dark:text-white">{user.recipeQuota}</p>
+                    <p className="text-[9px] text-emerald-600 dark:text-emerald-500 mt-2 uppercase font-bold tracking-widest">Active Artifacts</p>
                 </div>
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl p-4 min-w-[150px]">
-                    <p className="text-xs text-blue-800 dark:text-blue-400 font-bold uppercase mb-1">SOP Quota</p>
-                    <p className="text-2xl font-black text-blue-700 dark:text-blue-300">{user.sopQuota}</p>
-                </div>
-            </div>
-        </div>
-
-        {/* Top-Up Packages */}
-        <div className="max-w-4xl mx-auto">
-            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
-                <ShoppingBag className="text-purple-500"/> Instant Top-Ups
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Starter Pack */}
-                <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 hover:shadow-lg transition-all flex justify-between items-center">
-                    <div>
-                        <h4 className="font-bold text-lg text-slate-900 dark:text-white">{PACKAGES.STARTER.name}</h4>
-                        <div className="flex items-center gap-2 mt-1">
-                            <span className="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded">+ {PACKAGES.STARTER.recipeQuota} Recipes</span>
-                        </div>
-                        <p className="text-sm text-slate-500 mt-2">{PACKAGES.STARTER.desc}</p>
-                    </div>
-                    <div className="text-right">
-                        <p className="text-2xl font-black text-slate-900 dark:text-white mb-3">₹{PACKAGES.STARTER.price}</p>
-                        <button 
-                            onClick={() => handleBuyPackage(PACKAGES.STARTER.id, PACKAGES.STARTER.name, PACKAGES.STARTER.price, PACKAGES.STARTER.recipeQuota, PACKAGES.STARTER.sopQuota)}
-                            disabled={processingPackage === PACKAGES.STARTER.id}
-                            className="px-6 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold rounded-lg hover:opacity-90 flex items-center gap-2 disabled:opacity-50"
-                        >
-                            {processingPackage === PACKAGES.STARTER.id ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Buy
-                        </button>
-                    </div>
-                </div>
-
-                {/* PAYG Pack */}
-                <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 hover:shadow-lg transition-all flex justify-between items-center">
-                    <div>
-                        <h4 className="font-bold text-lg text-slate-900 dark:text-white">{PACKAGES.PAY_AS_YOU_GO.name}</h4>
-                        <div className="flex items-center gap-2 mt-1">
-                            <span className="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded">+ {PACKAGES.PAY_AS_YOU_GO.recipeQuota} Recipes</span>
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded">+ {PACKAGES.PAY_AS_YOU_GO.sopQuota} SOP</span>
-                        </div>
-                        <p className="text-sm text-slate-500 mt-2">{PACKAGES.PAY_AS_YOU_GO.desc}</p>
-                    </div>
-                    <div className="text-right">
-                        <p className="text-2xl font-black text-slate-900 dark:text-white mb-3">₹{PACKAGES.PAY_AS_YOU_GO.price}</p>
-                        <button 
-                            onClick={() => handleBuyPackage(PACKAGES.PAY_AS_YOU_GO.id, PACKAGES.PAY_AS_YOU_GO.name, PACKAGES.PAY_AS_YOU_GO.price, PACKAGES.PAY_AS_YOU_GO.recipeQuota, PACKAGES.PAY_AS_YOU_GO.sopQuota)}
-                            disabled={processingPackage === PACKAGES.PAY_AS_YOU_GO.id}
-                            className="px-6 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold rounded-lg hover:opacity-90 flex items-center gap-2 disabled:opacity-50"
-                        >
-                            {processingPackage === PACKAGES.PAY_AS_YOU_GO.id ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Buy
-                        </button>
-                    </div>
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] p-8 min-w-[240px] shadow-sm group hover:border-indigo-500/50 transition-all">
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1 flex items-center gap-2"><Check size={12}/> SOP Quota</p>
+                    <p className="text-5xl font-black text-slate-900 dark:text-white">{user.sopQuota}</p>
+                    <p className="text-[9px] text-indigo-600 dark:text-indigo-500 mt-2 uppercase font-bold tracking-widest">Protocol Envelopes</p>
                 </div>
             </div>
         </div>
 
-        <div className="border-t border-slate-200 dark:border-slate-800 my-8"></div>
-
-        {/* Subscription Plans */}
-        <div className="max-w-7xl mx-auto">
-            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 text-center">Monthly Subscriptions</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-                {/* Ops Manager */}
-                <div className="relative flex flex-col p-8 rounded-2xl bg-slate-900 text-white border border-slate-800 shadow-xl overflow-hidden">
-                    <div className="absolute top-0 right-0 bg-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">RECOMMENDED</div>
-                    <div className="mb-6">
-                        <h3 className="text-2xl font-bold">Ops Manager</h3>
-                        <p className="text-sm text-slate-400 mt-1">{currentPlans[PlanType.OPS_MANAGER].description}</p>
-                        <div className="mt-4 flex items-baseline">
-                            <span className="text-4xl font-black">₹{currentPlans[PlanType.OPS_MANAGER].price.toLocaleString()}</span>
-                            <span className="ml-1 text-sm text-slate-400">/ mo</span>
-                        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mt-16 px-4">
+            {/* GROWTH PLAN */}
+            <div className="relative flex flex-col p-10 rounded-[3rem] bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 shadow-2xl overflow-hidden group hover:border-emerald-500/30 transition-all">
+                <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[10px] font-black px-8 py-2 rounded-bl-3xl uppercase tracking-widest">Growth Node</div>
+                
+                <div className="mb-10">
+                    <h3 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Growth Plan</h3>
+                    <p className="text-sm text-slate-500 mt-2 font-bold">Revenue: ₹2L - ₹15L / Month</p>
+                    <div className="mt-8 flex items-baseline gap-2">
+                        <span className="text-6xl font-black text-slate-900 dark:text-white tracking-tighter">₹9,999</span>
+                        <span className="text-slate-400 font-black uppercase text-xs">/ outlet / month</span>
                     </div>
-                    <ul className="flex-1 space-y-4 mb-8">
-                        {currentPlans[PlanType.OPS_MANAGER].features.map((feature, i) => (
-                            <li key={i} className="flex items-start text-sm">
-                                <Check className="h-5 w-5 text-emerald-400 shrink-0 mr-3" />
-                                <span className="text-slate-300">{feature}</span>
-                            </li>
-                        ))}
-                    </ul>
-                    <button
-                        onClick={() => handlePlanAction(PlanType.OPS_MANAGER, currentPlans[PlanType.OPS_MANAGER].price)}
-                        disabled={user.plan === PlanType.OPS_MANAGER || processingPlan === PlanType.OPS_MANAGER}
-                        className="w-full py-4 rounded-xl font-bold text-slate-900 bg-white hover:bg-emerald-50 transition-colors"
-                    >
-                        {processingPlan === PlanType.OPS_MANAGER ? <Loader2 className="animate-spin mx-auto" /> : user.plan === PlanType.OPS_MANAGER ? 'Current Plan' : 'Subscribe Now'}
-                    </button>
+                    <p className="text-[10px] text-slate-400 mt-2 font-bold italic">* Exclusive of 18% GST</p>
                 </div>
 
-                {/* Enterprise */}
-                <div className="relative flex flex-col p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-md">
-                    <div className="mb-6">
-                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">Enterprise Cluster</h3>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{currentPlans[PlanType.ENTERPRISE].description}</p>
-                        <div className="mt-4 flex items-baseline">
-                            <span className="text-4xl font-black text-slate-900 dark:text-white">₹{currentPlans[PlanType.ENTERPRISE].price.toLocaleString()}</span>
-                            <span className="ml-1 text-sm text-slate-500">/ setup</span>
-                        </div>
+                <div className="mb-10 p-8 bg-emerald-50 dark:bg-emerald-900/10 rounded-[2rem] border border-emerald-100 dark:border-emerald-800/50 flex flex-col gap-2">
+                    <div className="flex items-center gap-3">
+                        <TrendingUp className="text-emerald-500" size={24}/>
+                        <p className="text-xs font-black uppercase tracking-widest text-emerald-800 dark:text-emerald-400">Monthly Value Estimate</p>
                     </div>
-                    <ul className="flex-1 space-y-4 mb-8">
-                        {currentPlans[PlanType.ENTERPRISE].features.map((feature, i) => (
-                            <li key={i} className="flex items-start text-sm">
-                                <Check className="h-5 w-5 text-yellow-500 shrink-0 mr-3" />
-                                <span className="text-slate-600 dark:text-slate-300">{feature}</span>
-                            </li>
-                        ))}
-                    </ul>
-                    <button
-                        onClick={() => handlePlanAction(PlanType.ENTERPRISE, currentPlans[PlanType.ENTERPRISE].price)}
-                        className="w-full py-4 rounded-xl font-bold text-slate-600 border border-slate-300 hover:bg-slate-50 transition-colors"
-                    >
-                        Contact Sales
-                    </button>
+                    <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400">₹30,000 - ₹50,000 <span className="text-xs opacity-60">Savings</span></p>
+                </div>
+
+                <ul className="flex-1 space-y-5 mb-12">
+                    {SYSTEM_PLANS[PlanType.FREE].features.map((feature, i) => (
+                        <li key={i} className="flex items-start text-sm font-bold text-slate-700 dark:text-slate-300">
+                            <div className="p-1 bg-emerald-100 dark:bg-emerald-900/30 rounded-full mr-4 mt-0.5"><Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></div>
+                            {feature}
+                        </li>
+                    ))}
+                </ul>
+
+                <button
+                    onClick={() => handlePlanAction(PlanType.FREE, 9999)}
+                    disabled={user.plan === PlanType.FREE || processingPlan === PlanType.FREE}
+                    className="w-full py-6 rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 shadow-2xl disabled:opacity-50 active:scale-[0.98]"
+                >
+                    {processingPlan === PlanType.FREE ? <Loader2 className="animate-spin mx-auto" /> : user.plan === PlanType.FREE ? 'Current Active Node' : 'Deploy Growth Hub'}
+                </button>
+            </div>
+
+            {/* PRO PLAN */}
+            <div className="relative flex flex-col p-10 rounded-[3rem] bg-slate-900 text-white border-2 border-indigo-500/40 shadow-2xl overflow-hidden group hover:border-indigo-500 transition-all">
+                <div className="absolute top-0 right-0 bg-indigo-500 text-white text-[10px] font-black px-8 py-2 rounded-bl-3xl uppercase tracking-widest">Recommended</div>
+                
+                <div className="mb-10">
+                    <h3 className="text-3xl font-black text-white uppercase tracking-tighter">Pro Intelligence</h3>
+                    <p className="text-sm text-slate-400 mt-2 font-bold">Revenue: Above ₹15L / Month</p>
+                    <div className="mt-8 flex items-baseline gap-2">
+                        <span className="text-6xl font-black text-white tracking-tighter">₹24,999</span>
+                        <span className="text-slate-500 font-black uppercase text-xs">/ outlet / month</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-2 font-bold italic">* Exclusive of 18% GST</p>
+                </div>
+
+                <div className="mb-10 p-8 bg-indigo-500/10 rounded-[2rem] border border-indigo-500/20 flex flex-col gap-2">
+                    <div className="flex items-center gap-3">
+                        <Zap className="text-indigo-400" size={24}/>
+                        <p className="text-xs font-black uppercase tracking-widest text-indigo-300">Monthly Value Estimate</p>
+                    </div>
+                    <p className="text-3xl font-black text-indigo-400">₹30,000 - ₹1,00,000 <span className="text-xs opacity-60">Savings</span></p>
+                </div>
+
+                <ul className="flex-1 space-y-5 mb-12">
+                    {SYSTEM_PLANS[PlanType.OPS_MANAGER].features.map((feature, i) => (
+                        <li key={i} className="flex items-start text-sm font-bold text-slate-200">
+                            <div className="p-1 bg-indigo-500/20 rounded-full mr-4 mt-0.5"><Check className="h-4 w-4 text-indigo-400" /></div>
+                            {feature}
+                        </li>
+                    ))}
+                </ul>
+
+                <button
+                    onClick={() => handlePlanAction(PlanType.OPS_MANAGER, 24999)}
+                    disabled={user.plan === PlanType.OPS_MANAGER || processingPlan === PlanType.OPS_MANAGER}
+                    className="w-full py-6 rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all bg-indigo-600 text-white hover:bg-indigo-500 shadow-2xl shadow-indigo-900/50 disabled:opacity-50 active:scale-[0.98]"
+                >
+                    {processingPlan === PlanType.OPS_MANAGER ? <Loader2 className="animate-spin mx-auto" /> : user.plan === PlanType.OPS_MANAGER ? 'Current Active Node' : 'Establish Pro Tunnel'}
+                </button>
+            </div>
+        </div>
+
+        {/* Security & Trust Badges */}
+        <div className="flex flex-wrap justify-center items-center gap-12 py-12 border-y border-slate-200 dark:border-slate-800 opacity-60 grayscale hover:grayscale-0 transition-all">
+            <div className="flex items-center gap-3"><Lock size={20}/><p className="text-xs font-black uppercase tracking-widest">AES-256 SSL Secure</p></div>
+            <div className="flex items-center gap-3"><Shield size={20}/><p className="text-xs font-black uppercase tracking-widest">Razorpay Verified</p></div>
+            <div className="flex items-center gap-3"><Globe size={20}/><p className="text-xs font-black uppercase tracking-widest">Node Uptime 99.9%</p></div>
+            <div className="flex items-center gap-3"><IndianRupee size={20}/><p className="text-xs font-black uppercase tracking-widest">GST Registered</p></div>
+        </div>
+
+        {/* Top-Up Section */}
+        <div className="mt-24 pt-16 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex justify-between items-end mb-12">
+                <div>
+                    <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter flex items-center gap-3">
+                        <ShoppingBag className="text-purple-500"/> One-Time Power Packs
+                    </h3>
+                    <p className="text-slate-500 text-sm mt-1">Scale your artifact limits instantly for specific scaling events.</p>
+                </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="p-10 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 hover:shadow-xl transition-all flex flex-col md:flex-row justify-between items-center gap-10 group">
+                    <div className="space-y-5 text-center md:text-left">
+                        <div className="inline-flex px-4 py-1.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-full text-[10px] font-black uppercase tracking-[0.2em]">Scale Up</div>
+                        <h4 className="font-black text-3xl text-slate-900 dark:text-white uppercase tracking-tight">{PACKAGES.STARTER.name}</h4>
+                        <div className="flex gap-2 justify-center md:justify-start">
+                            <span className="bg-slate-50 dark:bg-slate-800 px-3 py-1 rounded-lg text-[10px] font-black uppercase border border-slate-100 dark:border-slate-700 text-slate-500 tracking-widest">+ {PACKAGES.STARTER.recipeQuota} Recipes</span>
+                        </div>
+                        <p className="text-sm text-slate-500 font-medium max-w-xs">{PACKAGES.STARTER.desc}</p>
+                    </div>
+                    <div className="text-center md:text-right shrink-0">
+                        <p className="text-4xl font-black text-slate-900 dark:text-white mb-6 tracking-tighter">₹{PACKAGES.STARTER.price}</p>
+                        <button 
+                            onClick={() => handleBuyPackage(PACKAGES.STARTER.id, PACKAGES.STARTER.name, PACKAGES.STARTER.price, PACKAGES.STARTER.recipeQuota, PACKAGES.STARTER.sopQuota)} 
+                            disabled={processingPackage === PACKAGES.STARTER.id} 
+                            className="px-12 py-4 bg-slate-950 dark:bg-white text-white dark:text-slate-950 font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-xl disabled:opacity-50"
+                        >
+                            {processingPackage === PACKAGES.STARTER.id ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} className="fill-current" />} Purchase Pack
+                        </button>
+                    </div>
+                </div>
+
+                <div className="p-10 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 hover:shadow-xl transition-all flex flex-col md:flex-row justify-between items-center gap-10 group">
+                    <div className="space-y-5 text-center md:text-left">
+                        <div className="inline-flex px-4 py-1.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded-full text-[10px] font-black uppercase tracking-[0.2em]">Production Pack</div>
+                        <h4 className="font-black text-3xl text-slate-900 dark:text-white uppercase tracking-tight">{PACKAGES.PAY_AS_YOU_GO.name}</h4>
+                        <div className="flex gap-2 justify-center md:justify-start">
+                            <span className="bg-slate-50 dark:bg-slate-800 px-3 py-1 rounded-lg text-[10px] font-black uppercase border border-slate-100 dark:border-slate-700 text-slate-500 tracking-widest">+ {PACKAGES.PAY_AS_YOU_GO.recipeQuota} Recipes</span>
+                            <span className="bg-slate-50 dark:bg-slate-800 px-3 py-1 rounded-lg text-[10px] font-black uppercase border border-slate-100 dark:border-slate-700 text-slate-500 tracking-widest">+ {PACKAGES.PAY_AS_YOU_GO.sopQuota} SOPs</span>
+                        </div>
+                        <p className="text-sm text-slate-500 font-medium max-w-xs">{PACKAGES.PAY_AS_YOU_GO.desc}</p>
+                    </div>
+                    <div className="text-center md:text-right shrink-0">
+                        <p className="text-4xl font-black text-slate-900 dark:text-white mb-6 tracking-tighter">₹{PACKAGES.PAY_AS_YOU_GO.price}</p>
+                        <button 
+                            onClick={() => handleBuyPackage(PACKAGES.PAY_AS_YOU_GO.id, PACKAGES.PAY_AS_YOU_GO.name, PACKAGES.PAY_AS_YOU_GO.price, PACKAGES.PAY_AS_YOU_GO.recipeQuota, PACKAGES.PAY_AS_YOU_GO.sopQuota)} 
+                            disabled={processingPackage === PACKAGES.PAY_AS_YOU_GO.id} 
+                            className="px-12 py-4 bg-slate-950 dark:bg-white text-white dark:text-slate-950 font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-indigo-400 transition-all shadow-xl disabled:opacity-50"
+                        >
+                            {processingPackage === PACKAGES.PAY_AS_YOU_GO.id ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} className="fill-current" />} Purchase Pack
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

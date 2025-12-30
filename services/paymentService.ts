@@ -1,16 +1,14 @@
 
 import { PlanType, RazorpayOptions, RazorpayResponse, User } from '../types';
 
-// Fix: Extend Window interface to include Razorpay
 declare global {
   interface Window {
     Razorpay: any;
   }
 }
 
-// Razorpay Key should be provided via environment variables for security.
-// Fallback to a placeholder if not set.
-const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY || 'rzp_test_placeholder'; 
+// Razorpay Live Key should be provided via process.env.RAZORPAY_KEY
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY || 'rzp_live_placeholder'; 
 
 export const paymentService = {
     loadRazorpayScript: (): Promise<boolean> => {
@@ -21,8 +19,12 @@ export const paymentService = {
             }
             const script = document.createElement('script');
             script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+            script.async = true;
             script.onload = () => resolve(true);
-            script.onerror = () => resolve(false);
+            script.onerror = () => {
+                console.error("Payment Gateway: Script load failed.");
+                resolve(false);
+            };
             document.body.appendChild(script);
         });
     },
@@ -37,50 +39,52 @@ export const paymentService = {
         const isLoaded = await paymentService.loadRazorpayScript();
 
         if (!isLoaded) {
-            onFailure("Razorpay SDK failed to load. Please check your connection.");
+            onFailure("The secure payment gateway could not be reached. Please check your firewall or connection.");
             return;
         }
 
-        // Configuration for Razorpay
+        // Production Configuration
         const options: any = {
             key: RAZORPAY_KEY_ID, 
-            amount: amount * 100, // Amount in paise
+            amount: Math.round(amount * 100), // Amount in paise
             currency: 'INR',
-            name: 'BistroIntelligence',
-            description: `Upgrade to ${planType.replace('_', ' ')} Plan`,
-            image: 'https://cdn-icons-png.flaticon.com/512/3075/3075977.png',
+            name: 'BistroConnect Neural OS',
+            description: `Provisioning ${planType.replace('_', ' ')} Node`,
+            image: 'https://bistroconnect.in/favicon.ico',
             handler: function (response: RazorpayResponse) {
-                console.log("Payment Successful", response);
+                console.log("Gateway: Transaction Authorized", response.razorpay_payment_id);
                 onSuccess(response.razorpay_payment_id);
             },
             prefill: {
                 name: user.name,
                 email: user.email,
+                contact: '' // Optional: Add user phone if available
             },
             notes: {
                 plan: planType,
-                user_id: user.id
+                user_id: user.id,
+                deployment: 'Neural_Node_v2.5'
             },
             theme: {
                 color: '#10b981' // Emerald-500
             },
             modal: {
                 ondismiss: function() {
-                    onFailure("Payment process cancelled");
+                    onFailure("Payment process cancelled by user.");
                 }
             }
         };
 
         try {
-            const rzp = new (window as any).Razorpay(options);
+            const rzp = new window.Razorpay(options);
             rzp.on('payment.failed', function (response: any){
-                console.error(response.error);
-                onFailure(response.error.description || "Payment Failed");
+                console.error("Gateway Error:", response.error.code);
+                onFailure(response.error.description || "The transaction was declined by the bank.");
             });
             rzp.open();
         } catch (error) {
-            console.error("Payment Error", error);
-            onFailure("Payment initialization failed.");
+            console.error("Gateway Exception:", error);
+            onFailure("Neural link to payment processor failed. Please try again.");
         }
     }
 };

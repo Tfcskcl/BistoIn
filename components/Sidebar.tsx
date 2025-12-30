@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { LayoutDashboard, ChefHat, FileText, TrendingUp, Database, CreditCard, LogOut, Clapperboard, RefreshCw, GitMerge, BookOpen, Package, Camera, PieChart, PenTool } from 'lucide-react';
 import { AppView, User, PlanType, UserRole } from '../types';
@@ -33,7 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, use
     { id: AppView.VIDEO, label: 'Marketing Studio', icon: Clapperboard, allowedRoles: [UserRole.OWNER, UserRole.ADMIN, UserRole.SUPER_ADMIN] },
     { id: AppView.STRATEGY, label: 'Strategy AI', icon: TrendingUp, allowedRoles: [UserRole.OWNER, UserRole.SUPER_ADMIN] },
     { id: AppView.INTEGRATIONS, label: 'Data & Integrations', icon: Database, allowedRoles: [UserRole.OWNER, UserRole.SUPER_ADMIN, UserRole.ADMIN] },
-    { id: AppView.BILLING, label: 'Plans & Billing', icon: CreditCard, allowedRoles: [UserRole.OWNER] },
+    { id: AppView.BILLING, label: 'Plans & Billing', icon: CreditCard, allowedRoles: [UserRole.OWNER, UserRole.SUPER_ADMIN] },
   ];
 
   return (

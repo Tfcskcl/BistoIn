@@ -8,13 +8,34 @@ Always return STRICT machine-readable JSON. Tone: professional, operations-first
 `;
 
 export const NEURAL_GATEWAY_ASSISTANT_PROMPT = `
-You are Gemini AI initializing inside BistroConnect Intelligence.
-Your core task is to provide deep operational visibility.
-Primary Directive: Analyze staff movement patterns, identify bottlenecks in high-traffic zones, and calculate dwell times for station optimization.
-Initialization Protocol:
-1. Greet the user as Bistro Intelligence Core.
-2. Guided handshake for the neural link.
-3. List active features: Movement Analytics, Hygiene Auditing, Financial Integrity.
+You are the Pricing and Value-Explanation Assistant for BistroConnect Neural OS.
+
+Your role:
+- Help restaurant owners understand pricing clearly.
+- Recommend the right plan based on their business size.
+- Explain ROI in simple, non-technical language.
+- Never oversell features that are not included in the plan.
+- Focus on money saved, not technology.
+
+Pricing Plans:
+1) GROWTH PLAN – ₹9,999 per outlet per month
+   - Best for: Cafés, QSRs, cloud kitchens, single or small multi-outlet restaurants.
+   - Monthly revenue: ₹2 lakh to ₹15 lakh.
+   - Value: Reduce wastage, improve consistency, 200 AI actions.
+   - ROI: ₹30,000 to ₹50,000 savings per month.
+
+2) PRO PLAN – ₹24,999 per outlet per month
+   - Best for: Multi-outlet brands, hotels, central kitchens.
+   - Monthly revenue: Above ₹15 Lakh.
+   - Value: CCTV & staff movement analytics, visual SOP proof, 500 AI actions.
+   - ROI: ₹30,000 to ₹1 lakh savings per month.
+
+Rules for responses:
+- First ask 2–3 simple questions (outlet count, monthly sales, main problem).
+- Recommend ONE plan clearly.
+- Explain WHY that plan fits and calculate the ROI in Rupees.
+- Keep language simple (Indian business tone).
+- If unsure, recommend starting with Growth.
 `;
 
 export const STRATEGY_PROMPT = `
@@ -22,12 +43,6 @@ You are the Lead Neural Strategy Consultant for BistroConnect.
 Your goal is to provide data-driven, actionable growth strategies for restaurant owners.
 Analyze restaurant data, user goals, and market context.
 The report MUST be detailed and realistic.
-Components:
-1. summary: A list of high-level strategic takeaways.
-2. causes: Identification of operational or market friction points.
-3. action_plan: Specific initiatives with priority (High/Medium/Low).
-4. seasonal_menu_suggestions: Menu additions or removals based on the request.
-5. roadmap: A phase-by-phase implementation schedule.
 `;
 
 export const MENU_ENGINEERING_PROMPT = `
@@ -47,44 +62,11 @@ MANDATORY: Audit hygiene issues and staff movement efficiency.
 export const CCTV_SYSTEM_PROMPT = `
 You are the BistroConnect Vision Auditor. 
 MISSION: Analyze staff movement patterns over the specified duration. Identify high-traffic zones and calculate average dwell times for each station.
-
-MANDATORY OUTPUT FIELDS:
-1. detected_area: [Kitchen, Service Area, Dining Area, Storage]
-2. staff_movement_summary: { 
-     total_trips, 
-     high_traffic_zones: Array<string>, 
-     avg_dwell_time_seconds, 
-     unproductive_movement_pct,
-     patterns: Array<{ pattern_id, name, detected, explanation, severity }>
-   }
-3. dwell_times: Record<string, number> (Seconds spent in zones like 'Prep', 'Cooking', 'Wash', 'Pass')
-4. hygiene_audit: {
-     overall_hygiene_score: (0-100),
-     violations: Array<{ type, severity, description, location, action_required }>,
-     gas_hygiene_status, floor_status, storage_compliance
-   }
-5. cash_movement: {
-     total_received: number,
-     total_withdrawals: number,
-     drawer_discrepancies: number,
-     transaction_count: number,
-     drawer_open_frequency_score: number (0-100),
-     withdrawal_logs: Array<{ timestamp, amount, purpose, authorized: boolean }>,
-     receipt_logs: Array<{ timestamp, detected_amount, items_count, drawer_synced: boolean }>,
-     integrity_notes: string
-   }
-6. performance_scores: { kitchen_efficiency, inventory_health, congestion_score, hygiene_safety_score, financial_integrity_score }
-7. summary_report: string
-
-Return JSON ONLY.
 `;
 
 export const KITCHEN_OPTIMIZER_PROMPT = `
 You are the BistroConnect Architectural Optimizer.
 Given a current kitchen layout (JSON format), rearrange elements for maximum workflow efficiency based on staff movement heatmaps.
-Create clear zones: PREP, COOKING, PLATING.
-Rules: Keep boundaries, optimize (x, y) for minimal movement.
-Return JSON.
 `;
 
 export const APP_CONTEXT = `AI assistant for BistroIntelligence operations.`;
@@ -92,10 +74,48 @@ export const CREDIT_COSTS = { RECIPE: 0, SOP: 0, STRATEGY: 0, VIDEO: 0, IMAGE: 0
 export const SETUP_FEE = 99;
 
 export const PLANS = {
-  [PlanType.FREE]: { name: 'Pay As You Go', price: 0, features: ['Recipe Generator', 'SOP Studio'], color: 'slate' },
-  [PlanType.OPS_MANAGER]: { name: 'Ops Manager', price: 24999, features: ['Unlimited Recipes/SOPs', 'CCTV AI Monitoring'], color: 'emerald' },
-  [PlanType.FULL_SYSTEM]: { name: 'Full System', price: 49999, features: ['Strategy AI', 'Marketing Studio Pro'], color: 'purple' },
-  [PlanType.ENTERPRISE]: { name: 'Enterprise Cluster', price: 149999, features: ['Command Center', 'Custom API'], color: 'yellow' }
+  [PlanType.FREE]: { 
+    name: 'Growth Plan', 
+    price: 9999, 
+    description: 'Perfect for single cafes and cloud kitchens (₹2L - ₹15L Revenue).',
+    features: [
+        'SOP & Hygiene Monitoring', 
+        'Kitchen Workflow Analysis', 
+        'Inventory Leakage Insights', 
+        'Recipe Costing Intelligence', 
+        'Marketing & Menu Insights', 
+        '200 AI Actions per month'
+    ], 
+    color: 'emerald' 
+  },
+  [PlanType.OPS_MANAGER]: { 
+    name: 'Pro Plan', 
+    price: 24999, 
+    description: 'The complete OS for multi-outlet brands (Above ₹15L Revenue).',
+    features: [
+        'Everything in Growth', 
+        'CCTV & Staff Movement Analytics', 
+        'Visual SOP Violations', 
+        'Hygiene Breach Detection', 
+        'Weekly AI Audit & Strategy', 
+        'Profit Leakage Optimization',
+        '500 AI Actions per month'
+    ], 
+    color: 'indigo' 
+  },
+  [PlanType.FULL_SYSTEM]: { 
+    name: 'Enterprise Cluster', 
+    price: 99999, 
+    description: 'Custom implementation for large groups and hotel chains.',
+    features: ['Command Center Dashboard', 'Custom API & Integration', 'Hardware Consultation', 'Priority Node Support'], 
+    color: 'yellow' 
+  },
+  [PlanType.ENTERPRISE]: { 
+    name: 'Custom Node', 
+    price: 0, 
+    features: ['Contact for Pricing'], 
+    color: 'slate' 
+  }
 };
 
 export const PACKAGES = {
