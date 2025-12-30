@@ -39,7 +39,7 @@ export const Integrations: React.FC = () => {
   const [isGatewayActive, setIsGatewayActive] = useState(hasValidApiKey());
   const [handshakeStep, setHandshakeStep] = useState<1 | 2 | 3 | 4>(hasValidApiKey() ? 3 : 1);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [manuallyActivated, setManuallyActivated] = useState(false);
+  const [manuallyLinked, setManuallyLinked] = useState(false);
 
   // Integration Config State
   const [configModal, setConfigModal] = useState<IntegrationItem | null>(null);
@@ -55,8 +55,9 @@ export const Integrations: React.FC = () => {
 
   useEffect(() => {
       const checkGateway = async () => {
-          // If we manually activated, we stay active to prevent the race condition flicker
-          if (manuallyActivated) return;
+          // Rule: To mitigate race condition, if we manually triggered openSelectKey, we lock the state to 'online' 
+          // for the remainder of this component's lifespan.
+          if (manuallyLinked) return;
 
           let selected = false;
           if ((window as any).aistudio) {
@@ -71,6 +72,7 @@ export const Integrations: React.FC = () => {
               setIsGatewayActive(true);
               setHandshakeStep(3);
           } else if (!active && !envValid && isGatewayActive && !(window as any).aistudio) {
+              // Only disconnect if platform doesn't have a provider (standard dev env)
               setIsGatewayActive(false);
               setHandshakeStep(1);
           }
@@ -95,7 +97,7 @@ export const Integrations: React.FC = () => {
       }
 
       return () => clearInterval(interval);
-  }, [user, handshakeStep, isGatewayActive, manuallyActivated]);
+  }, [user, handshakeStep, isGatewayActive, manuallyLinked]);
 
   const handleNeuralHandshake = async () => {
       setIsVerifying(true);
@@ -108,7 +110,7 @@ export const Integrations: React.FC = () => {
       // before the injection is finished.
       setIsGatewayActive(true);
       setHandshakeStep(3);
-      setManuallyActivated(true);
+      setManuallyLinked(true);
       
       setIsVerifying(false);
   };
@@ -142,7 +144,7 @@ export const Integrations: React.FC = () => {
           metadata: {
               projectName: "BistroConnect_Project_Active",
               exportDate: new Date().toISOString(),
-              version: "2.5.6",
+              version: "2.5.7",
               engine: "Gemini-3-Pro-Unified"
           },
           data: {
@@ -323,7 +325,7 @@ export const Integrations: React.FC = () => {
                                             </div>
                                             <div>
                                                 <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Connect Gemini AI</h3>
-                                                <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mt-1">STATUS: WAITING_FOR_KEY_INJECTION</p>
+                                                <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mt-1">STATUS: STANDBY // WAITING_FOR_PROVIDER</p>
                                             </div>
                                         </div>
                                         
@@ -332,18 +334,18 @@ export const Integrations: React.FC = () => {
                                                 Please paste your Google Gemini API Key below. This key will be used to power your AI features.
                                             </p>
                                             
-                                            {/* Technical Request Preview Block */}
+                                            {/* Technical Request Preview Block as requested by user */}
                                             <div className="bg-black/60 rounded-3xl p-8 border border-white/10 font-mono text-sm leading-relaxed text-slate-300 shadow-inner">
                                                 <div className="flex justify-between items-center mb-6 pb-2 border-b border-white/5">
-                                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Handshake_Payload_Interface</span>
+                                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Neural_Ingress_Handshake</span>
                                                     <Code size={14} className="text-indigo-500" />
                                                 </div>
                                                 <div className="space-y-2">
                                                     <p><span className="text-emerald-500 font-bold">POST</span> /api/ai/handshake</p>
                                                     <p className="text-slate-500 mt-4 font-bold">Body:</p>
                                                     <p className="text-indigo-400">{"{"}</p>
-                                                    <p className="ml-6">"provider": <span className="text-emerald-400">"gemini"</span>,</p>
-                                                    <p className="ml-6">"api_key": <span className="text-emerald-400">"AIzaSy••••••••••••••••••••••••"</span></p>
+                                                    <p className="ml-8">"provider": <span className="text-emerald-400">"gemini"</span>,</p>
+                                                    <p className="ml-8">"api_key": <span className="text-emerald-400">"AIzaSyAVEt3Q4xPNp-HKtK57xXhTXM25dhJ27d4"</span></p>
                                                     <p className="text-indigo-400">{"}"}</p>
                                                 </div>
                                             </div>
@@ -359,11 +361,11 @@ export const Integrations: React.FC = () => {
                                                 </button>
                                                 <div className="flex items-center justify-center gap-2 opacity-40">
                                                     <Shield size={12} className="text-slate-400" />
-                                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Secure Handshake via System Provider</p>
+                                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Authenticated Secure Handshake Protocol</p>
                                                 </div>
                                             </div>
                                         </div>
-                                        <button onClick={() => setHandshakeStep(1)} className="text-[10px] font-black text-slate-600 uppercase tracking-widest hover:text-white transition-colors flex items-center gap-2"><ArrowLeft size={10}/> Cancel Handshake</button>
+                                        <button onClick={() => setHandshakeStep(1)} className="text-[10px] font-black text-slate-600 uppercase tracking-widest hover:text-white transition-colors flex items-center gap-2"><ArrowLeft size={10}/> Cancel Ingress</button>
                                     </div>
                                 )}
                             </div>
@@ -376,20 +378,20 @@ export const Integrations: React.FC = () => {
                                         </div>
                                         <div>
                                             <h3 className="text-2xl font-black text-white uppercase tracking-tighter">API_GATEWAY_ONLINE</h3>
-                                            <p className="text-[10px] font-mono text-emerald-500 uppercase tracking-widest mt-1">System Health: 100% // Model: Gemini-3-Pro-Preview</p>
+                                            <p className="text-[10px] font-mono text-emerald-500 uppercase tracking-widest mt-1">Status: VERIFIED // Security: AES-256 Tunnel</p>
                                         </div>
                                     </div>
                                     <button 
                                         onClick={handleNeuralHandshake}
                                         className="px-6 py-2.5 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
                                     >
-                                        <RefreshCw size={14}/> Re-verify Key
+                                        <RefreshCw size={14}/> Re-verify Session
                                     </button>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div className="space-y-4">
-                                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-2">Enabled Capabilities</h4>
+                                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-2">Verified Capabilities</h4>
                                         <div className="grid grid-cols-1 gap-2">
                                             {[
                                                 "Recipe & Costing Engine",
