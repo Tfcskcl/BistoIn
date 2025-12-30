@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { SYSTEM_INSTRUCTION, CCTV_SYSTEM_PROMPT, UNIFIED_SYSTEM_PROMPT, MENU_ENGINEERING_PROMPT, STRATEGY_PROMPT } from "../constants";
+import { SYSTEM_INSTRUCTION, NEURAL_GATEWAY_ASSISTANT_PROMPT, CCTV_SYSTEM_PROMPT, UNIFIED_SYSTEM_PROMPT, MENU_ENGINEERING_PROMPT, STRATEGY_PROMPT } from "../constants";
 import { RecipeCard, SOP, StrategyReport, UnifiedSchema, CCTVAnalysisResult, User, MenuGenerationRequest, MenuItem, InventoryItem, KitchenDesign, MenuStructure } from "../types";
 
 /**
@@ -10,17 +10,17 @@ export const openNeuralGateway = async (): Promise<boolean> => {
     if ((window as any).aistudio) {
         try {
             // Trigger the secure platform dialog
-            await (window as any).aistudio.openSelectKey();
+            // We call it but don't strictly wait for user interaction to confirm success 
+            // because of the mandated assumption to mitigate race conditions.
+            (window as any).aistudio.openSelectKey();
             
             // MANDATORY: Assume success after triggering to mitigate race conditions.
-            // Proceed as if the key is already injected into process.env.API_KEY.
             return true;
         } catch (e) {
             console.error("Nexus Gateway: Handshake initiation failed:", e);
             return false;
         }
     }
-    // Fallback check for standard environments
     return hasValidApiKey();
 };
 
@@ -44,8 +44,6 @@ export const hasValidApiKey = (): boolean => {
  */
 const getAI = () => {
     const key = process.env.API_KEY;
-    // We check validity here. If the user hasn't selected a key yet, we throw
-    // a specific error that the UI can catch to prompt them.
     if (!key || String(key).trim().length < 8) {
         throw new Error("NEURAL_GATEWAY_STANDBY: System requires a valid API Key. Please establish a link via Nexus Control.");
     }
@@ -60,9 +58,9 @@ const handleNeuralError = async (err: any) => {
     const errorMsg = err?.message || String(err);
     if (errorMsg.includes("Requested entity was not found")) {
         console.warn("Nexus Gateway: Authentication Expired or Entity Missing. Resetting Link.");
-        // Re-prompt user immediately via standard dialog
+        // Reset key selection state and prompt again via standard dialog
         await openNeuralGateway();
-        throw new Error("NEURAL_SESSION_RESET: Gateway link reset required. Please select your key in the platform dialog.");
+        throw new Error("NEURAL_SESSION_RESET: Gateway link reset required. Please select your key again in the platform dialog.");
     }
     throw err;
 };
@@ -556,7 +554,13 @@ export const generatePurchaseOrder = async (s: string, i: any[]): Promise<any> =
 export const getChatResponse = async (h: any[], i: string): Promise<string> => {
     try {
         const ai = getAI();
-        const res = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: i });
+        const res = await ai.models.generateContent({ 
+            model: 'gemini-3-flash-preview', 
+            contents: i,
+            config: {
+                systemInstruction: NEURAL_GATEWAY_ASSISTANT_PROMPT
+            }
+        });
         return res.text || '';
     } catch (e) {
         return handleNeuralError(e);

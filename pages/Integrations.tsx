@@ -38,7 +38,7 @@ export const Integrations: React.FC = () => {
   // Neural Gateway Status
   const [isGatewayActive, setIsGatewayActive] = useState(hasValidApiKey());
   const [isVerifying, setIsVerifying] = useState(false);
-  const [manuallyTriggered, setManuallyTriggered] = useState(false);
+  const [sessionOverride, setSessionOverride] = useState(false);
 
   // Integration Config State
   const [configModal, setConfigModal] = useState<IntegrationItem | null>(null);
@@ -54,17 +54,23 @@ export const Integrations: React.FC = () => {
 
   useEffect(() => {
       const checkGatewaySync = async () => {
-          // If the user just clicked "Connect", we trust them until a hard error occurs.
-          // This mitigates the race condition where env var injection takes time.
-          if (manuallyTriggered) return;
+          // If we manually linked this session, we stick to it unless hard error.
+          if (sessionOverride) return;
 
-          const valid = hasValidApiKey();
-          if (valid !== isGatewayActive) {
-              setIsGatewayActive(valid);
+          let active = hasValidApiKey();
+          
+          // Use platform polling if available
+          if (!active && (window as any).aistudio) {
+              try {
+                  active = await (window as any).aistudio.hasSelectedApiKey();
+              } catch (e) {}
+          }
+          
+          if (active !== isGatewayActive) {
+              setIsGatewayActive(active);
           }
       };
 
-      // Periodic check for environmental sync
       const interval = setInterval(checkGatewaySync, 2000);
       checkGatewaySync();
 
@@ -84,20 +90,23 @@ export const Integrations: React.FC = () => {
       }
 
       return () => clearInterval(interval);
-  }, [user, isGatewayActive, manuallyTriggered]);
+  }, [user, isGatewayActive, sessionOverride]);
 
   const handleNeuralHandshake = async () => {
       setIsVerifying(true);
-      // Triggers platform window.aistudio.openSelectKey()
+      
+      // Calls window.aistudio.openSelectKey() internally
       const triggered = await openNeuralGateway();
       
       if (triggered) {
           // MANDATORY: Assume success after triggering the dialog to proceed immediately.
           setIsGatewayActive(true);
-          setManuallyTriggered(true);
+          setSessionOverride(true);
           
-          // Brief visual feedback before letting the platform dialog take over
-          setTimeout(() => setIsVerifying(false), 500);
+          // Brief visual feedback before letting the platform dialog take over the user's focus
+          setTimeout(() => {
+              setIsVerifying(false);
+          }, 500);
       } else {
           setIsVerifying(false);
       }
@@ -297,7 +306,6 @@ export const Integrations: React.FC = () => {
                                         <div className="space-y-4">
                                             <button 
                                                 onClick={handleNeuralHandshake}
-                                                disabled={isVerifying}
                                                 className="w-full py-5 bg-emerald-600 text-white font-black rounded-2xl text-xs uppercase tracking-[0.2em] hover:bg-emerald-500 transition-all shadow-2xl flex items-center justify-center gap-3 active:scale-95"
                                             >
                                                 {isVerifying ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18}/>}
