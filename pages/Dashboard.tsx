@@ -53,18 +53,16 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
     const [isAiActive, setIsAiActive] = useState(hasValidApiKey());
     const [manuallyLinked, setManuallyLinked] = useState(false);
 
-    const load = async () => {
+    const load = async (bypassAi: boolean = false) => {
         const savedTasks = storageService.getTasks(user.id) || [];
         const history = storageService.getCCTVHistory(user.id) || [];
         
-        // Use manuallyLinked override for better UX during env injection
         const aiValid = manuallyLinked || hasValidApiKey();
-        
         setTasks(savedTasks);
         setCctvHistory(history);
         setIsAiActive(aiValid);
         
-        if (aiValid) {
+        if (aiValid && !bypassAi) {
             setLoadingPulse(true);
             try {
                 const data = await analyzeUnifiedRestaurantData({
@@ -79,15 +77,14 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                 setUnifiedData(data);
             } catch (e: any) { 
                 console.error("Dashboard AI Fetch failed:", e);
-                // If it was a mock-linked state that failed, we revert
-                if (e.message?.includes("NEURAL_GATEWAY_STANDBY")) {
+                if (e.message?.includes("NEURAL_GATEWAY_STANDBY") || e.message?.includes("NEURAL_LINK_RESET")) {
                     setIsAiActive(false);
                     setManuallyLinked(false);
                 }
             } finally { 
                 setLoadingPulse(false); 
             }
-        } else {
+        } else if (!aiValid) {
             setUnifiedData({
                 summary: "Neural Engine Offline. Establishment handshake required for live intelligence summaries.",
                 health_score: 100,
@@ -99,10 +96,10 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
     const handleHandshake = async () => {
         const success = await openNeuralGateway();
         if (success) {
-            // Assume success immediately
             setIsAiActive(true);
             setManuallyLinked(true);
-            await load();
+            // Refresh storage/ui but wait a beat for key injection
+            setTimeout(() => load(), 500);
         }
     };
 
@@ -139,29 +136,6 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
         (e.target as any).reset();
     };
 
-    const trends = useMemo(() => {
-        if (cctvHistory.length < 2) return null;
-        const latest = cctvHistory[0];
-        const previous = cctvHistory[1];
-
-        const calc = (cur: number = 0, prev: number = 0) => {
-            const diff = cur - prev;
-            return {
-                val: Math.abs(diff).toFixed(1),
-                up: diff >= 0,
-                impact: diff > 0 ? 'improvement' : diff < 0 ? 'regression' : 'neutral'
-            };
-        };
-
-        return {
-            efficiency: calc(latest.performance_scores.kitchen_efficiency, previous.performance_scores.kitchen_efficiency),
-            hygiene: calc(latest.performance_scores.hygiene_safety_score, previous.performance_scores.hygiene_safety_score),
-            integrity: calc(latest.performance_scores.financial_integrity_score, previous.performance_scores.financial_integrity_score),
-            latestArea: latest.detected_area,
-            timestamp: new Date(latest.timestamp).toLocaleTimeString()
-        };
-    }, [cctvHistory]);
-
     const latestAudit = cctvHistory[0];
 
     return (
@@ -188,62 +162,25 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                         <div className="glass p-6 rounded-3xl border-slate-800 relative overflow-hidden group">
                              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><IndianRupee size={60}/></div>
                              <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Financial Pulse</h4>
-                             <div className="flex justify-between items-end">
-                                <div>
-                                    <p className="text-3xl font-black text-white">
-                                        ₹{latestAudit?.cash_movement?.total_received?.toLocaleString() || '14,250'}
-                                    </p>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <p className="text-[10px] font-mono text-emerald-500 uppercase">ESTIMATED_INFLOW</p>
-                                        {trends?.integrity && (
-                                            <span className={`flex items-center text-[9px] font-bold ${trends.integrity.up ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                {trends.integrity.up ? <ArrowUp size={10}/> : <ArrowDown size={10}/>} {trends.integrity.val}%
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-xs font-bold text-red-500">
-                                        -₹{latestAudit?.cash_movement?.total_withdrawals?.toLocaleString() || '1,200'}
-                                    </p>
-                                    <p className="text-[9px] text-slate-600 uppercase font-bold tracking-widest">Withdrawals</p>
-                                </div>
+                             <div>
+                                <p className="text-3xl font-black text-white">₹{latestAudit?.cash_movement?.total_received?.toLocaleString() || '14,250'}</p>
+                                <p className="text-[10px] font-mono text-emerald-500 uppercase mt-1">ESTIMATED_INFLOW</p>
                              </div>
                         </div>
                         <div className="glass p-6 rounded-3xl border-slate-800 relative overflow-hidden group">
                              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Eye size={60}/></div>
                              <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Efficiency Score</h4>
-                             <div className="flex justify-between items-end">
-                                <div>
-                                    <p className="text-3xl font-black text-white">
-                                        {latestAudit?.performance_scores.kitchen_efficiency || '96.4'}%
-                                    </p>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <p className="text-[10px] font-mono text-indigo-400 uppercase">AUDIT_STRENGTH</p>
-                                        {trends?.efficiency && (
-                                            <span className={`flex items-center text-[9px] font-bold ${trends.efficiency.up ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                {trends.efficiency.up ? <ArrowUp size={10}/> : <ArrowDown size={10}/>} {trends.efficiency.val}%
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                                <TrendingUp size={24} className="text-emerald-500" />
+                             <div>
+                                <p className="text-3xl font-black text-white">{latestAudit?.performance_scores.kitchen_efficiency || '96.4'}%</p>
+                                <p className="text-[10px] font-mono text-indigo-400 uppercase mt-1">AUDIT_STRENGTH</p>
                              </div>
                         </div>
                         <div className="glass p-6 rounded-3xl border-slate-800 relative overflow-hidden group">
                              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Biohazard size={60}/></div>
                              <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Hygiene Status</h4>
-                             <div className="flex justify-between items-end">
-                                <div>
-                                    <p className={`text-3xl font-black uppercase tracking-tighter ${(latestAudit?.hygiene_audit?.violations.length || 0) > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
-                                        {(latestAudit?.hygiene_audit?.violations.length || 0) > 0 ? 'At Risk' : 'Secure'}
-                                    </p>
-                                    <p className="text-[10px] font-mono text-slate-600 mt-1 uppercase">
-                                        {latestAudit?.hygiene_audit?.violations.length || 0}_VIOLATIONS_DETECTED
-                                    </p>
-                                </div>
-                                <ShieldCheck size={24} className={(latestAudit?.hygiene_audit?.violations.length || 0) > 0 ? 'text-amber-500' : 'text-emerald-500'} />
-                             </div>
+                             <p className={`text-3xl font-black uppercase tracking-tighter ${(latestAudit?.hygiene_audit?.violations.length || 0) > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                                {(latestAudit?.hygiene_audit?.violations.length || 0) > 0 ? 'At Risk' : 'Secure'}
+                             </p>
                         </div>
                     </div>
 
@@ -270,7 +207,7 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                                             
                                             {!isAiActive && (
                                                 <div className="mt-6 pt-4 border-t border-white/5 space-y-4">
-                                                    <p className="text-[10px] text-slate-500 italic">No API Key detected. Establish neural link to enable real-time tactical audits.</p>
+                                                    <p className="text-[10px] text-slate-500 italic">Neural Link Offline. Features limited to local storage.</p>
                                                     <button 
                                                         onClick={handleHandshake}
                                                         className="w-full py-3 bg-white text-slate-900 font-black rounded-xl text-[10px] uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-xl flex items-center justify-center gap-2"
@@ -279,44 +216,6 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                                                     </button>
                                                 </div>
                                             )}
-                                        </div>
-
-                                        {isAiActive && trends && (
-                                            <div className="space-y-4 animate-fade-in">
-                                                <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-2">
-                                                    <ScanLine size={12}/> Neural Drift Insights (vs Previous Session)
-                                                </p>
-                                                <div className="grid grid-cols-1 gap-2">
-                                                    {trends.efficiency.impact !== 'neutral' && (
-                                                        <div className={`p-3 rounded-xl border flex items-center justify-between ${trends.efficiency.up ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
-                                                            <div className="flex items-center gap-2">
-                                                                <Zap size={14} className={trends.efficiency.up ? 'text-emerald-400' : 'text-red-400'}/>
-                                                                <span className="text-[10px] text-slate-300 uppercase">Workflow Velocity</span>
-                                                            </div>
-                                                            <span className={`font-bold ${trends.efficiency.up ? 'text-emerald-400' : 'text-red-400'}`}>{trends.efficiency.up ? 'IMPROVED' : 'DRIFTED'}</span>
-                                                        </div>
-                                                    )}
-                                                    {trends.hygiene.impact !== 'neutral' && (
-                                                        <div className={`p-3 rounded-xl border flex items-center justify-between ${trends.hygiene.up ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
-                                                            <div className="flex items-center gap-2">
-                                                                <ShieldCheck size={14} className={trends.hygiene.up ? 'text-emerald-400' : 'text-red-400'}/>
-                                                                <span className="text-[10px] text-slate-300 uppercase">Compliance Hygiene</span>
-                                                            </div>
-                                                            <span className={`font-bold ${trends.hygiene.up ? 'text-emerald-400' : 'text-red-400'}`}>{trends.hygiene.up ? 'STRENGTHENED' : 'WARNING'}</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        <div className="space-y-2">
-                                            <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Data Stream Matrix</p>
-                                            <div className="flex flex-wrap gap-2">
-                                                <span className="px-2 py-1 bg-white/5 border border-slate-800 rounded text-[9px] text-white">POS_FEED</span>
-                                                <span className="px-2 py-1 bg-white/5 border border-slate-800 rounded text-[9px] text-white">CAM_01_RGB</span>
-                                                <span className="px-2 py-1 bg-white/5 border border-slate-800 rounded text-[9px] text-white">VISION_AUDIT_LOG</span>
-                                                <span className="px-2 py-1 bg-white/5 border border-slate-800 rounded text-[9px] text-white">INV_DELTA</span>
-                                            </div>
                                         </div>
                                     </>
                                 )}
@@ -357,82 +256,11 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                 </div>
 
                 <div className="space-y-6">
-                    {latestAudit?.hygiene_audit?.violations.length ? (
-                        <div className="glass p-8 rounded-[2.5rem] border-red-500/30 bg-red-50/5 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><AlertTriangle size={80}/></div>
-                            <h3 className="text-sm font-black text-red-500 mb-4 uppercase tracking-widest flex items-center gap-2">
-                                <ShieldAlert size={16}/> Critical Deviation
-                            </h3>
-                            <div className="p-4 bg-black/40 rounded-2xl border border-red-500/20 mb-6">
-                                <p className="text-[10px] font-black text-white uppercase mb-1">{latestAudit.hygiene_audit.violations[0].type.replace('_', ' ')}</p>
-                                <p className="text-[11px] text-slate-400 leading-relaxed italic">
-                                    "{latestAudit.hygiene_audit.violations[0].description}"
-                                </p>
-                            </div>
-                            <button 
-                                onClick={() => onChangeView(AppView.CCTV_ANALYTICS)}
-                                className="w-full py-4 bg-red-600 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-red-500 transition-all shadow-xl shadow-red-900/20"
-                            >
-                                Resolve in Vision Hub
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="glass p-8 rounded-[2.5rem] border-emerald-500/30 bg-emerald-500/5 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><ShieldCheck size={80}/></div>
-                            <h3 className="text-sm font-black text-emerald-400 mb-4 uppercase tracking-widest flex items-center gap-2">
-                                <ShieldCheck size={16}/> Behavior Guard
-                            </h3>
-                            <p className="text-xs text-slate-400 leading-relaxed mb-6 font-medium">
-                                Neural nodes report 100% SOP adherence across active stations. No behavioral drift detected in latest audit cycles.
-                            </p>
-                            <button 
-                                onClick={() => onChangeView(AppView.CCTV_ANALYTICS)}
-                                className="w-full py-4 bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-emerald-600/30 transition-all"
-                            >
-                                Audit Stream Archive
-                            </button>
-                        </div>
-                    )}
-
                     <div className="glass p-8 rounded-[2.5rem] border-indigo-500/30 bg-indigo-500/5 relative overflow-hidden group">
                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Brain size={100}/></div>
                         <h3 className="text-lg font-black text-white mb-4 uppercase tracking-tighter flex items-center gap-2"><Sparkles className="text-emerald-400"/> Strategy Engine</h3>
-                        <p className="text-xs text-slate-400 leading-relaxed mb-6 font-medium">
-                            Synthesizing market condition with local sales. Suggesting 5% price adjustment on "Truffle Fries" based on high-vol elasticity.
-                        </p>
-                        <button 
-                            onClick={() => onChangeView(AppView.STRATEGY)}
-                            className="w-full py-4 bg-white text-slate-950 font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-xl shadow-white/5"
-                        >
-                            Open Strategic Nexus
-                        </button>
-                    </div>
-                    
-                    <div className="glass p-8 rounded-[2.5rem] border-slate-800">
-                        <div className="flex justify-between items-center mb-6">
-                            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Audit Archive</h4>
-                            <History size={14} className="text-slate-600"/>
-                        </div>
-                        <div className="space-y-4">
-                            {cctvHistory.length === 0 ? (
-                                <p className="text-[10px] text-slate-600 italic">No historical neural telemetry available.</p>
-                            ) : (
-                                cctvHistory.slice(0, 3).map((item, i) => (
-                                    <div key={i} className="flex justify-between items-center group cursor-pointer" onClick={() => onChangeView(AppView.CCTV_ANALYTICS)}>
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center border border-slate-800 group-hover:border-emerald-500 transition-colors">
-                                                <ScanLine size={14} className="text-slate-400 group-hover:text-emerald-400"/>
-                                            </div>
-                                            <div>
-                                                <span className="text-[10px] font-bold text-slate-300 block leading-tight">{item.detected_area} Audit</span>
-                                                <span className="text-[8px] font-mono text-slate-600 uppercase">{new Date(item.timestamp).toLocaleDateString()}</span>
-                                            </div>
-                                        </div>
-                                        <ChevronRight size={14} className="text-slate-700 group-hover:text-white transition-colors"/>
-                                    </div>
-                                ))
-                            )}
-                        </div>
+                        <p className="text-xs text-slate-400 leading-relaxed mb-6 font-medium">Synthesize market conditions with local sales to find tactical growth opportunities.</p>
+                        <button onClick={() => onChangeView(AppView.STRATEGY)} className="w-full py-4 bg-white text-slate-950 font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-xl">Open Strategic Nexus</button>
                     </div>
                 </div>
             </div>
