@@ -37,7 +37,7 @@ export const Integrations: React.FC = () => {
 
   // Neural Gateway Status
   const [isGatewayActive, setIsGatewayActive] = useState(hasValidApiKey());
-  const [handshakeStep, setHandshakeStep] = useState<1 | 2 | 3 | 4>(hasValidApiKey() ? 3 : 1);
+  const [handshakeStep, setHandshakeStep] = useState<1 | 2>(hasValidApiKey() ? 2 : 1);
   const [isVerifying, setIsVerifying] = useState(false);
   const [manuallyLinked, setManuallyLinked] = useState(false);
 
@@ -55,8 +55,6 @@ export const Integrations: React.FC = () => {
 
   useEffect(() => {
       const checkGateway = async () => {
-          // Rule: To mitigate race condition, if we manually triggered openSelectKey, we lock the state to 'online' 
-          // for the remainder of this component's lifespan.
           if (manuallyLinked) return;
 
           let selected = false;
@@ -70,9 +68,8 @@ export const Integrations: React.FC = () => {
           
           if (active && !isGatewayActive) {
               setIsGatewayActive(true);
-              setHandshakeStep(3);
+              setHandshakeStep(2);
           } else if (!active && !envValid && isGatewayActive && !(window as any).aistudio) {
-              // Only disconnect if platform doesn't have a provider (standard dev env)
               setIsGatewayActive(false);
               setHandshakeStep(1);
           }
@@ -101,17 +98,12 @@ export const Integrations: React.FC = () => {
 
   const handleNeuralHandshake = async () => {
       setIsVerifying(true);
-      
-      // Call the provisioning helper (opens AI Studio dialog)
-      await openNeuralGateway();
-      
-      // MANDATORY: Assume selection was successful and proceed immediately.
-      // This mitigates the race condition where hasSelectedApiKey might return false
-      // before the injection is finished.
-      setIsGatewayActive(true);
-      setHandshakeStep(3);
-      setManuallyLinked(true);
-      
+      const success = await openNeuralGateway();
+      if (success) {
+          setIsGatewayActive(true);
+          setHandshakeStep(2);
+          setManuallyLinked(true);
+      }
       setIsVerifying(false);
   };
 
@@ -290,84 +282,38 @@ export const Integrations: React.FC = () => {
                     <div className="p-10 min-h-[400px] flex flex-col justify-center">
                         {!isGatewayActive ? (
                             <div className="space-y-8 animate-fade-in">
-                                {handshakeStep === 1 && (
-                                    <div className="space-y-6">
+                                <div className="space-y-6">
+                                    <div className="flex items-center gap-6 mb-8">
+                                        <div className="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center border border-emerald-500/20 text-emerald-500 shadow-[0_0_40px_rgba(16,185,129,0.1)]">
+                                            <Key size={32} />
+                                        </div>
                                         <div>
-                                            <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-2">SYSTEM_HANDSHAKE_REQUIRED</h3>
-                                            <p className="text-sm text-slate-500 leading-relaxed max-w-lg">
-                                                To initialize the BistroConnect Intelligence platform, a valid Google Gemini API key is required. This key powers the multi-modal neural nodes responsible for real-time restaurant audits.
-                                            </p>
+                                            <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Connect Neural OS</h3>
+                                            <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mt-1">STATUS: STANDBY // WAITING_FOR_HANDSHAKE</p>
                                         </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
-                                                <h4 className="text-[10px] font-black text-emerald-400 uppercase mb-2">Why is it required?</h4>
-                                                <p className="text-xs text-slate-400 leading-relaxed">The platform uses high-tier vision models (Gemini 3 Pro) for complex behavioral analysis and market costing.</p>
-                                            </div>
-                                            <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
-                                                <h4 className="text-[10px] font-black text-indigo-400 uppercase mb-2">Security & Privacy</h4>
-                                                <p className="text-xs text-slate-400 leading-relaxed">Your key is used exclusively for this workspace. We do not store or mirror your API keys on external servers.</p>
-                                            </div>
-                                        </div>
-                                        <button 
-                                            onClick={() => setHandshakeStep(2)}
-                                            className="px-8 py-4 bg-white text-slate-950 font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-xl flex items-center gap-2"
-                                        >
-                                            Continue to Link <ArrowRight size={14}/>
-                                        </button>
                                     </div>
-                                )}
-
-                                {handshakeStep === 2 && (
+                                    
                                     <div className="space-y-6">
-                                        <div className="flex items-center gap-6 mb-8">
-                                            <div className="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center border border-emerald-500/20 text-emerald-500 shadow-[0_0_40px_rgba(16,185,129,0.1)]">
-                                                <Key size={32} />
-                                            </div>
-                                            <div>
-                                                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Connect Gemini AI</h3>
-                                                <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mt-1">STATUS: STANDBY // WAITING_FOR_PROVIDER</p>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="space-y-6">
-                                            <p className="text-sm text-slate-400 leading-relaxed">
-                                                Please paste your Google Gemini API Key below. This key will be used to power your AI features.
-                                            </p>
-                                            
-                                            {/* Technical Request Preview Block as requested by user */}
-                                            <div className="bg-black/60 rounded-3xl p-8 border border-white/10 font-mono text-sm leading-relaxed text-slate-300 shadow-inner">
-                                                <div className="flex justify-between items-center mb-6 pb-2 border-b border-white/5">
-                                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Neural_Ingress_Handshake</span>
-                                                    <Code size={14} className="text-indigo-500" />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <p><span className="text-emerald-500 font-bold">POST</span> /api/ai/handshake</p>
-                                                    <p className="text-slate-500 mt-4 font-bold">Body:</p>
-                                                    <p className="text-indigo-400">{"{"}</p>
-                                                    <p className="ml-8">"provider": <span className="text-emerald-400">"gemini"</span>,</p>
-                                                    <p className="ml-8">"api_key": <span className="text-emerald-400">"AIzaSyAVEt3Q4xPNp-HKtK57xXhTXM25dhJ27d4"</span></p>
-                                                    <p className="text-indigo-400">{"}"}</p>
-                                                </div>
-                                            </div>
+                                        <p className="text-sm text-slate-400 leading-relaxed max-w-lg">
+                                            To initialize the intelligence engine, please establish a connection with your Google Cloud project. This powers the high-tier vision models (Gemini 3 Pro) for your restaurant audits.
+                                        </p>
 
-                                            <div className="space-y-4">
-                                                <button 
-                                                    onClick={handleNeuralHandshake}
-                                                    disabled={isVerifying}
-                                                    className="w-full py-5 bg-emerald-600 text-white font-black rounded-2xl text-xs uppercase tracking-[0.2em] hover:bg-emerald-500 transition-all shadow-2xl flex items-center justify-center gap-3 active:scale-95"
-                                                >
-                                                    {isVerifying ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18}/>}
-                                                    Connect & Verify
-                                                </button>
-                                                <div className="flex items-center justify-center gap-2 opacity-40">
-                                                    <Shield size={12} className="text-slate-400" />
-                                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Authenticated Secure Handshake Protocol</p>
-                                                </div>
+                                        <div className="space-y-4">
+                                            <button 
+                                                onClick={handleNeuralHandshake}
+                                                disabled={isVerifying}
+                                                className="w-full py-5 bg-emerald-600 text-white font-black rounded-2xl text-xs uppercase tracking-[0.2em] hover:bg-emerald-500 transition-all shadow-2xl flex items-center justify-center gap-3 active:scale-95"
+                                            >
+                                                {isVerifying ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18}/>}
+                                                Initialize Neural Gateway
+                                            </button>
+                                            <div className="flex items-center justify-center gap-2 opacity-40">
+                                                <Shield size={12} className="text-slate-400" />
+                                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Authenticated Secure Handshake Protocol</p>
                                             </div>
                                         </div>
-                                        <button onClick={() => setHandshakeStep(1)} className="text-[10px] font-black text-slate-600 uppercase tracking-widest hover:text-white transition-colors flex items-center gap-2"><ArrowLeft size={10}/> Cancel Ingress</button>
                                     </div>
-                                )}
+                                </div>
                             </div>
                         ) : (
                             <div className="space-y-10 animate-fade-in">
@@ -495,30 +441,6 @@ export const Integrations: React.FC = () => {
                         <button className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-black transition-all shadow-xl">Force Re-extraction</button>
                     </div>
                 </div>
-                
-                <div className="glass p-8 rounded-[2.5rem] border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Neural Fidelity Meter</h4>
-                    <div className="space-y-6">
-                        <div>
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-[10px] font-bold text-slate-500 uppercase">Vision Depth</span>
-                                <span className="text-[10px] font-black text-emerald-500">PRO_ACTIVE</span>
-                            </div>
-                            <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                <div className="h-full bg-emerald-500 w-[95%]"></div>
-                            </div>
-                        </div>
-                        <div>
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-[10px] font-bold text-slate-500 uppercase">Costing Accuracy</span>
-                                <span className="text-[10px] font-black text-indigo-500">GROUNDED</span>
-                            </div>
-                            <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                <div className="h-full bg-indigo-500 w-[88%]"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
       )}
@@ -642,68 +564,6 @@ export const Integrations: React.FC = () => {
                           </button>
                       </form>
                   </div>
-
-                  <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex-1">
-                      <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center">
-                          <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Ingress Log: {manualCategory}</h4>
-                          <span className="text-[10px] font-mono text-slate-400">Total Records: {manualCategory === 'sales' ? salesEntries.length : manualCategory === 'purchase' ? purchaseEntries.length : manualCategory === 'expense' ? expenseEntries.length : manpowerEntries.length}</span>
-                      </div>
-                      <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
-                          <table className="w-full text-left text-xs">
-                              <thead className="sticky top-0 bg-white dark:bg-slate-900 border-b text-slate-400 font-bold uppercase tracking-widest text-[9px]">
-                                  <tr>
-                                      <th className="px-6 py-4">Date</th>
-                                      {manualCategory === 'sales' && <><th className="px-6 py-4">Channel</th><th className="px-6 py-4">Revenue</th><th className="px-6 py-4">Orders</th></>}
-                                      {manualCategory === 'purchase' && <><th className="px-6 py-4">Supplier</th><th className="px-6 py-4">Category</th><th className="px-6 py-4">Amount</th></>}
-                                      {manualCategory === 'expense' && <><th className="px-6 py-4">Type</th><th className="px-6 py-4">Amount</th><th className="px-6 py-4">Note</th></>}
-                                      {manualCategory === 'manpower' && <><th className="px-6 py-4">Staff</th><th className="px-6 py-4">Cost</th><th className="px-6 py-4">OT Hours</th></>}
-                                      <th className="px-6 py-4 text-right">Action</th>
-                                  </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
-                                  {manualCategory === 'sales' && salesEntries.map(e => (
-                                      <tr key={e.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                                          <td className="px-6 py-4 text-slate-400">{e.date}</td>
-                                          <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200">{e.channel}</td>
-                                          <td className="px-6 py-4 text-emerald-600 font-black">₹{e.revenue.toLocaleString()}</td>
-                                          <td className="px-6 py-4 text-slate-500">{e.orderCount}</td>
-                                          <td className="px-6 py-4 text-right"><button onClick={() => { if(user){ const updated = salesEntries.filter(i=>i.id!==e.id); setSalesEntries(updated); storageService.saveManualSales(user.id, updated); } }} className="text-slate-400 hover:text-red-500"><Trash2 size={14}/></button></td>
-                                      </tr>
-                                  ))}
-                                  {manualCategory === 'purchase' && purchaseEntries.map(e => (
-                                      <tr key={e.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                                          <td className="px-6 py-4 text-slate-400">{e.date}</td>
-                                          <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200">{e.supplier}</td>
-                                          <td className="px-6 py-4 text-slate-500">{e.category}</td>
-                                          <td className="px-6 py-4 text-blue-600 font-black">₹{e.amount.toLocaleString()}</td>
-                                          <td className="px-6 py-4 text-right"><button onClick={() => { if(user){ const updated = purchaseEntries.filter(i=>i.id!==e.id); setPurchaseEntries(updated); storageService.saveManualPurchases(user.id, updated); } }} className="text-slate-400 hover:text-red-500"><Trash2 size={14}/></button></td>
-                                      </tr>
-                                  ))}
-                                  {manualCategory === 'expense' && expenseEntries.map(e => (
-                                      <tr key={e.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                                          <td className="px-6 py-4 text-slate-400">{e.date}</td>
-                                          <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200">{e.type}</td>
-                                          <td className="px-6 py-4 text-amber-600 font-black">₹{e.amount.toLocaleString()}</td>
-                                          <td className="px-6 py-4 text-slate-500 max-w-[150px] truncate">{e.note}</td>
-                                          <td className="px-6 py-4 text-right"><button onClick={() => { if(user){ const updated = expenseEntries.filter(i=>i.id!==e.id); setExpenseEntries(updated); storageService.saveManualExpenses(user.id, updated); } }} className="text-slate-400 hover:text-red-500"><Trash2 size={14}/></button></td>
-                                      </tr>
-                                  ))}
-                                  {manualCategory === 'manpower' && manpowerEntries.map(e => (
-                                      <tr key={e.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                                          <td className="px-6 py-4 text-slate-400">{e.date}</td>
-                                          <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200">{e.staffCount} HEADS</td>
-                                          <td className="px-6 py-4 text-purple-600 font-black">₹{e.totalSalaries.toLocaleString()}</td>
-                                          <td className="px-6 py-4 text-slate-500">{e.overtimeHours}h</td>
-                                          <td className="px-6 py-4 text-right"><button onClick={() => { if(user){ const updated = manpowerEntries.filter(i=>i.id!==e.id); setManualManpower(updated); storageService.saveManualManpower(user.id, updated); } }} className="text-slate-400 hover:text-red-500"><Trash2 size={14}/></button></td>
-                                      </tr>
-                                  ))}
-                                  {((manualCategory === 'sales' && salesEntries.length === 0) || (manualCategory === 'purchase' && purchaseEntries.length === 0) || (manualCategory === 'expense' && expenseEntries.length === 0) || (manualCategory === 'manpower' && manpowerEntries.length === 0)) && (
-                                      <tr><td colSpan={6} className="px-6 py-20 text-center text-slate-400 uppercase font-black opacity-30 italic">No historical records in stream</td></tr>
-                                  )}
-                              </tbody>
-                          </table>
-                      </div>
-                  </div>
               </div>
           </div>
       )}
@@ -726,85 +586,6 @@ export const Integrations: React.FC = () => {
                       {isExporting ? <Loader2 className="animate-spin" size={20}/> : <Download size={20}/>}
                       {isExporting ? 'Packaging...' : 'Begin Serialization'}
                   </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="glass p-6 rounded-3xl border-slate-800 flex flex-col justify-between group hover:bg-white/5 transition-all cursor-pointer">
-                      <div><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Recipe Models</p><h4 className="text-white font-bold text-lg uppercase tracking-tight">Technical Library</h4></div>
-                      <p className="text-xs text-slate-500 mt-4 font-mono uppercase">ENTRIES: {storageService.getSavedRecipes(user?.id || '').length}</p>
-                  </div>
-                  <div className="glass p-6 rounded-3xl border-slate-800 flex flex-col justify-between group hover:bg-white/5 transition-all cursor-pointer">
-                      <div><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Logic Flow</p><h4 className="text-white font-bold text-lg uppercase tracking-tight">SOP Protocol Base</h4></div>
-                      <p className="text-xs text-slate-500 mt-4 font-mono uppercase">ENTRIES: {storageService.getSavedSOPs(user?.id || '').length}</p>
-                  </div>
-                  <div className="glass p-6 rounded-3xl border-slate-800 flex flex-col justify-between group hover:bg-white/5 transition-all cursor-pointer">
-                      <div><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Neural Vision</p><h4 className="text-white font-bold text-lg uppercase tracking-tight">CCTV Audit History</h4></div>
-                      <p className="text-xs text-slate-500 mt-4 font-mono uppercase">ENTRIES: {storageService.getCCTVHistory(user?.id || '').length}</p>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* API Configuration Modal */}
-      {configModal && (
-          <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-6">
-              <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-[2.5rem] shadow-2xl overflow-hidden relative animate-scale-in">
-                  <div className="p-10">
-                      <div className="flex items-center gap-4 mb-8">
-                          <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-500/20 text-indigo-500 shadow-inner text-xl font-black">
-                              {configModal.icon}
-                          </div>
-                          <div>
-                              <h3 className="text-2xl font-black text-white uppercase tracking-tighter">{configModal.name} Config</h3>
-                              <p className="text-xs font-mono text-slate-500 uppercase tracking-widest">TECHNICAL_HANDSHAKE_NODE</p>
-                          </div>
-                      </div>
-
-                      <form onSubmit={handleSaveConfig} className="space-y-5">
-                          <div>
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-1 block">Store / Merchant ID</label>
-                              <input 
-                                value={currentConfig.storeId} 
-                                onChange={e => setCurrentConfig({...currentConfig, storeId: e.target.value})}
-                                required
-                                className="w-full p-3 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl text-sm outline-none focus:ring-1 focus:ring-indigo-500 font-mono" 
-                                placeholder="ST_XXXX_YY"
-                              />
-                          </div>
-                          <div>
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-1 block">API Key (Bearer Token)</label>
-                              <input 
-                                value={currentConfig.apiKey} 
-                                onChange={e => setCurrentConfig({...currentConfig, apiKey: e.target.value})}
-                                required
-                                type="password"
-                                className="w-full p-3 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl text-sm outline-none focus:ring-1 focus:ring-indigo-500 font-mono" 
-                                placeholder="••••••••••••••••"
-                              />
-                          </div>
-                          <div>
-                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-1 block">Secret Key</label>
-                              <input 
-                                value={currentConfig.apiSecret} 
-                                onChange={e => setCurrentConfig({...currentConfig, apiSecret: e.target.value})}
-                                required
-                                type="password"
-                                className="w-full p-3 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl text-sm outline-none focus:ring-1 focus:ring-indigo-500 font-mono" 
-                                placeholder="••••••••••••••••"
-                              />
-                          </div>
-
-                          <div className="bg-indigo-500/5 p-4 rounded-xl border border-indigo-500/10 flex gap-3 items-start">
-                              <ShieldCheck size={16} className="text-indigo-500 shrink-0 mt-0.5"/>
-                              <p className="text-[10px] text-slate-400 italic leading-relaxed">System will use these keys to scrape reports directly from {configModal.name}'s secure cloud. No login details required.</p>
-                          </div>
-
-                          <div className="flex gap-3 pt-4">
-                              <button type="button" onClick={() => setConfigModal(null)} className="flex-1 py-3 bg-slate-800 text-white font-bold rounded-xl text-xs uppercase tracking-widest hover:bg-slate-700 transition-all">Cancel</button>
-                              <button type="submit" className="flex-[2] py-3 bg-white text-slate-950 font-black rounded-xl text-xs uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-xl">Authorize Node</button>
-                          </div>
-                      </form>
-                  </div>
               </div>
           </div>
       )}

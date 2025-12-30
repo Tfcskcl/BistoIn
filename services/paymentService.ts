@@ -8,8 +8,9 @@ declare global {
   }
 }
 
-// Razorpay Live Key ID
-const RAZORPAY_KEY_ID = 'rzp_live_RYndnOARtD6tmd'; 
+// Razorpay Key should be provided via environment variables for security.
+// Fallback to a placeholder if not set.
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY || 'rzp_test_placeholder'; 
 
 export const paymentService = {
     loadRazorpayScript: (): Promise<boolean> => {
@@ -41,7 +42,6 @@ export const paymentService = {
         }
 
         // Configuration for Razorpay
-        // Using 'any' for options to support 'modal' property without modifying global types
         const options: any = {
             key: RAZORPAY_KEY_ID, 
             amount: amount * 100, // Amount in paise
@@ -56,7 +56,6 @@ export const paymentService = {
             prefill: {
                 name: user.name,
                 email: user.email,
-                // Contact omitted to allow user to enter their own phone number
             },
             notes: {
                 plan: planType,
