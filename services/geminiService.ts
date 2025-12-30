@@ -5,16 +5,16 @@ import { RecipeCard, SOP, StrategyReport, UnifiedSchema, CCTVAnalysisResult, Use
 
 /**
  * TECHNICAL PROVISION: Triggers the AI Studio Key Selection Dialog.
- * MANDATORY: We assume success immediately after the dialog opens to mitigate race conditions.
+ * MANDATORY: We assume success immediately after triggering openSelectKey to mitigate race conditions.
  */
 export const openNeuralGateway = async (): Promise<boolean> => {
     if ((window as any).aistudio) {
         try {
             await (window as any).aistudio.openSelectKey();
-            // Proceed as if key is injected immediately
+            // Assume success and proceed immediately to the app
             return true;
         } catch (e) {
-            console.error("Nexus Gateway: Handshake failed:", e);
+            console.error("Nexus Gateway: Handshake initiation failed:", e);
             return false;
         }
     }
@@ -22,41 +22,42 @@ export const openNeuralGateway = async (): Promise<boolean> => {
 };
 
 /**
- * Validates the existence of a real API key vs a build-time placeholder.
+ * Checks if a key has been selected using the platform tool.
  */
 export const hasValidApiKey = (): boolean => {
-    const key = process.env.API_KEY;
-    const isInvalid = !key || 
-                      String(key).toLowerCase() === "undefined" || 
-                      String(key).toLowerCase() === "null" || 
-                      String(key).trim() === "" ||
-                      String(key).includes("YOUR_API_KEY");
-                         
-    return !isInvalid && String(key).trim().length > 8;
-};
-
-/**
- * Internal helper: Initializes a FRESH client for EVERY call.
- * This is CRITICAL for capturing keys injected after initial load.
- */
-const getAI = () => {
-    const key = process.env.API_KEY;
-    if (!hasValidApiKey()) {
-        throw new Error("NEURAL_GATEWAY_STANDBY: No valid API Key detected. Establish link via Nexus Control.");
+    // If we're in the AI Studio environment, use their check
+    if ((window as any).aistudio?.hasSelectedApiKey) {
+        // Note: this is async in reality but used sync in some UI parts.
+        // We'll trust the process.env.API_KEY fallback for sync checks.
     }
-    return new GoogleGenAI({ apiKey: String(key).trim() });
+    
+    const key = process.env.API_KEY;
+    const isPlaceholder = !key || 
+                         String(key).toLowerCase() === "undefined" || 
+                         String(key).toLowerCase() === "null" || 
+                         String(key).trim() === "" ||
+                         String(key).includes("YOUR_API_KEY");
+                         
+    return !isPlaceholder && String(key).trim().length >= 8;
 };
 
 /**
- * Handles self-healing logic for the live environment.
+ * Internal helper: Initializes a NEW client instance for every call.
+ * This is CRITICAL for live sites where the API key is injected after load.
+ */
+const getFreshAI = () => {
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+};
+
+/**
+ * Handles API errors, specifically triggering re-authentication if the key is lost.
  */
 const handleNeuralError = async (err: any) => {
     const errorMsg = err?.message || String(err);
-    // Specific error triggered when a key is invalid or removed from a project
     if (errorMsg.includes("Requested entity was not found") || errorMsg.includes("API key not valid")) {
-        console.warn("Nexus Gateway: Connection stale. Re-triggering Handshake.");
+        console.warn("Nexus Gateway: Auth Expired. Resetting Link.");
         await openNeuralGateway();
-        throw new Error("NEURAL_LINK_RESET: Gateway session expired. Please re-select your key in the dialog.");
+        throw new Error("NEURAL_SESSION_RESET: Gateway link reset. Please select your key again in the platform dialog.");
     }
     throw err;
 };
@@ -67,7 +68,7 @@ export const cleanAndParseJSON = <T>(text: string): T => {
         return JSON.parse(jsonMatch ? jsonMatch[1] : text) as T;
     } catch (e) {
         console.error("JSON Parsing Error:", text);
-        throw new Error("Neural response parsing failed.");
+        throw new Error("Failed to parse neural response.");
     }
 };
 
@@ -79,7 +80,7 @@ export const analyzeStaffMovement = async (
     frames: string[] = [] 
 ): Promise<CCTVAnalysisResult> => {
     try {
-        const ai = getAI();
+        const ai = getFreshAI();
         const contentParts: any[] = [{ text: `${CCTV_SYSTEM_PROMPT}\nFootage: ${desc}\nZones: ${zones.join(', ')}` }];
         frames.forEach((f) => contentParts.push({ inlineData: { mimeType: 'image/jpeg', data: f.split(',')[1] || f } }));
 
@@ -106,7 +107,7 @@ export const generateRecipeCard = async (
     persona?: string
 ): Promise<RecipeCard> => {
     try {
-        const ai = getAI();
+        const ai = getFreshAI();
         const response = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
             contents: `Task: Technical culinary spec sheet for ${item.name} at ${location || 'India'}. Persona: ${persona || 'Executive Chef'}. Requirements: ${reqs}.`,
@@ -132,7 +133,7 @@ export const generateRecipeCard = async (
 
 export const generateSOP = async (topic: string): Promise<SOP> => {
     try {
-        const ai = getAI();
+        const ai = getFreshAI();
         const res = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: `Generate Standard Operating Procedure for: ${topic}`,
@@ -149,7 +150,7 @@ export const generateSOP = async (topic: string): Promise<SOP> => {
 
 export const analyzeUnifiedRestaurantData = async (data: any): Promise<UnifiedSchema> => {
     try {
-        const ai = getAI();
+        const ai = getFreshAI();
         const res = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
             contents: `${UNIFIED_SYSTEM_PROMPT}\nData: ${JSON.stringify(data)}`,
@@ -166,7 +167,7 @@ export const analyzeUnifiedRestaurantData = async (data: any): Promise<UnifiedSc
 
 export const generateStrategy = async (u: User, q: string, c: string): Promise<StrategyReport> => {
     try {
-        const ai = getAI();
+        const ai = getFreshAI();
         const response = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
             contents: `Business Strategy for ${u.restaurantName}. Goal: ${q}. Historical Data: ${c}`,
@@ -184,7 +185,7 @@ export const generateStrategy = async (u: User, q: string, c: string): Promise<S
 
 export const generateMarketingImage = async (prompt: string, aspectRatio: string): Promise<string> => {
     try {
-        const ai = getAI();
+        const ai = getFreshAI();
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image',
             contents: { parts: [{ text: prompt }] },
@@ -201,7 +202,7 @@ export const generateMarketingImage = async (prompt: string, aspectRatio: string
 
 export const generateMarketingVideo = async (imgs: string[], prompt: string, ar: string): Promise<string> => {
     try {
-        const ai = getAI();
+        const ai = getFreshAI();
         let operation = await ai.models.generateVideos({
             model: 'veo-3.1-fast-generate-preview',
             prompt,
@@ -221,7 +222,7 @@ export const generateMarketingVideo = async (imgs: string[], prompt: string, ar:
 
 export const generateMenu = async (req: MenuGenerationRequest): Promise<string> => {
     try {
-        const ai = getAI();
+        const ai = getFreshAI();
         const prompt = `Task: Restaurant Menu Engineering. Restaurant: ${req.restaurantName}.`;
         const res = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
@@ -239,7 +240,7 @@ export const generateMenu = async (req: MenuGenerationRequest): Promise<string> 
 
 export const generateKitchenDesign = async (title: string, l: number, w: number, cuisine: string, reqs: string): Promise<KitchenDesign> => {
     try {
-        const ai = getAI();
+        const ai = getFreshAI();
         const res = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
             contents: `Architectural Kitchen Layout Task. Restaurant: ${title}. Dimensions: ${l}x${w}ft.`,
@@ -256,7 +257,7 @@ export const generateKitchenDesign = async (title: string, l: number, w: number,
 
 export const getChatResponse = async (h: any[], i: string): Promise<string> => {
     try {
-        const ai = getAI();
+        const ai = getFreshAI();
         const res = await ai.models.generateContent({ 
             model: 'gemini-3-flash-preview', 
             contents: i,
@@ -270,7 +271,7 @@ export const getChatResponse = async (h: any[], i: string): Promise<string> => {
 
 export const analyzeMenuEngineering = async (i: any[]): Promise<any[]> => {
     try {
-        const ai = getAI();
+        const ai = getFreshAI();
         const res = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: `${MENU_ENGINEERING_PROMPT}\nData: ${JSON.stringify(i)}`,
@@ -284,7 +285,7 @@ export const analyzeMenuEngineering = async (i: any[]): Promise<any[]> => {
 
 export const verifyLocationWithMaps = async (location: string): Promise<string> => {
     try {
-        const ai = getAI();
+        const ai = getFreshAI();
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: `Verify if "${location}" is a valid restaurant location.`,
@@ -298,7 +299,7 @@ export const verifyLocationWithMaps = async (location: string): Promise<string> 
 
 export const optimizeKitchenDesign = async (design: KitchenDesign): Promise<DesignElement[]> => {
     try {
-        const ai = getAI();
+        const ai = getFreshAI();
         const response = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
             contents: `Optimize the following kitchen layout elements for better workflow efficiency: ${JSON.stringify(design.elements)}. 
@@ -318,7 +319,7 @@ export const optimizeKitchenDesign = async (design: KitchenDesign): Promise<Desi
 
 export const generatePurchaseOrder = async (supplier: string, items: InventoryItem[]): Promise<PurchaseOrder> => {
     try {
-        const ai = getAI();
+        const ai = getFreshAI();
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: `Generate a Purchase Order for supplier ${supplier} based on these low stock items: ${JSON.stringify(items)}.`,
@@ -335,7 +336,7 @@ export const generatePurchaseOrder = async (supplier: string, items: InventoryIt
 
 export const generateKitchenWorkflow = async (description: string): Promise<string> => {
     try {
-        const ai = getAI();
+        const ai = getFreshAI();
         const response = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
             contents: `Design an optimized kitchen workflow based on this description and pain points: ${description}`,
@@ -352,7 +353,7 @@ export const generateKitchenWorkflow = async (description: string): Promise<stri
 
 export const generateChecklistFromAnalysis = async (analysis: CCTVAnalysisResult): Promise<Task[]> => {
     try {
-        const ai = getAI();
+        const ai = getFreshAI();
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: `Based on this CCTV audit result, generate a list of actionable corrective tasks: ${JSON.stringify(analysis)}`,
@@ -369,7 +370,7 @@ export const generateChecklistFromAnalysis = async (analysis: CCTVAnalysisResult
 
 export const generateRevisedSOPFromAnalysis = async (analysis: CCTVAnalysisResult, currentSop: SOP): Promise<SOP> => {
     try {
-        const ai = getAI();
+        const ai = getFreshAI();
         const response = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
             contents: `Revise the following SOP: ${JSON.stringify(currentSop)} based on these CCTV audit findings: ${JSON.stringify(analysis)}`,

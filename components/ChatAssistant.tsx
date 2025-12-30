@@ -23,17 +23,18 @@ export const ChatAssistant: React.FC = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
+    // Initialization Flow logic
     useEffect(() => {
         const active = hasValidApiKey();
         setIsAiActive(active);
         
         if (active) {
             setMessages([
-                { id: '1', role: 'assistant', text: 'Neural Link Established. BistroIntelligence modules are active: Vision Auditing, Dynamic Costing, and Strategy Synthesis. How shall we optimize your operations today?' }
+                { id: '1', role: 'assistant', text: 'Neural Link Established. I am Gemini AI, initialized inside BistroConnect Intelligence. How shall we optimize your operations today?' }
             ]);
         } else {
             setMessages([
-                { id: '1', role: 'assistant', text: 'Initializing BistroConnect Intelligence... Protocol Error: Neural Link required. A Google Gemini API key is necessary to activate multi-modal Vision AI and strategic reasoning modules. Please establish a secure link via Nexus Control.' }
+                { id: '1', role: 'assistant', text: 'Initializing BistroConnect Intelligence... Before proceeding, a valid Google Gemini API key is required. This powers the high-fidelity Vision AI, dynamic costing engine, and strategic reasoning modules. Please establish a secure link via the button below.' }
             ]);
         }
     }, [isAiActive]);
@@ -41,10 +42,11 @@ export const ChatAssistant: React.FC = () => {
     useEffect(() => {
         if (isOpen) scrollToBottom();
         
+        // Polling for key injection from platform
         const interval = setInterval(() => {
             const active = hasValidApiKey();
-            if (active !== isAiActive) setIsAiActive(active);
-        }, 2000);
+            if (active && !isAiActive) setIsAiActive(true);
+        }, 3000);
         
         return () => clearInterval(interval);
     }, [messages, isOpen, isAiActive]);
@@ -65,6 +67,11 @@ export const ChatAssistant: React.FC = () => {
         } catch (error: any) {
             const errorMsg: Message = { id: (Date.now() + 1).toString(), role: 'assistant', text: `Handshake Failed: ${error.message}` };
             setMessages(prev => [...prev, errorMsg]);
+            
+            // If the error indicates a bad key, reset active state to prompt re-selection
+            if (error.message.includes("NEURAL_SESSION_RESET")) {
+                setIsAiActive(false);
+            }
         } finally {
             setLoading(false);
         }
@@ -72,7 +79,14 @@ export const ChatAssistant: React.FC = () => {
 
     const handleConnectInChat = async () => {
         const success = await openNeuralGateway();
-        if (success) setIsAiActive(true);
+        if (success) {
+            // MANDATORY: Assume success immediately after triggering openSelectKey
+            setIsAiActive(true);
+            setMessages(prev => [
+                ...prev, 
+                { id: Date.now().toString(), role: 'assistant', text: 'Nexus Gateway Handshake triggered. Assuming secure link... Connecting modules...' }
+            ]);
+        }
     };
 
     return (
