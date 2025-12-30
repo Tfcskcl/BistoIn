@@ -51,13 +51,13 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
     const [tasks, setTasks] = useState<Task[]>([]);
     const [cctvHistory, setCctvHistory] = useState<CCTVHistoryItem[]>([]);
     const [isAiActive, setIsAiActive] = useState(hasValidApiKey());
-    const [manuallyLinked, setManuallyLinked] = useState(false);
+    const [assumeSuccess, setAssumeSuccess] = useState(false);
 
     const load = async (bypassAi: boolean = false) => {
         const savedTasks = storageService.getTasks(user.id) || [];
         const history = storageService.getCCTVHistory(user.id) || [];
         
-        const aiValid = manuallyLinked || hasValidApiKey();
+        const aiValid = assumeSuccess || hasValidApiKey();
         setTasks(savedTasks);
         setCctvHistory(history);
         setIsAiActive(aiValid);
@@ -77,9 +77,10 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                 setUnifiedData(data);
             } catch (e: any) { 
                 console.error("Dashboard AI Fetch failed:", e);
-                if (e.message?.includes("NEURAL_GATEWAY_STANDBY") || e.message?.includes("NEURAL_LINK_RESET")) {
+                // If it fails with a specific auth error, we know assumeSuccess was wrong or key is bad
+                if (e.message?.includes("NEURAL_LINK_EXPIRED") || e.message?.includes("entity was not found")) {
                     setIsAiActive(false);
-                    setManuallyLinked(false);
+                    setAssumeSuccess(false);
                 }
             } finally { 
                 setLoadingPulse(false); 
@@ -94,12 +95,14 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
     };
 
     const handleHandshake = async () => {
+        // MANDATORY: Assume success immediately after triggering
+        setAssumeSuccess(true);
+        setIsAiActive(true);
+        
         const success = await openNeuralGateway();
         if (success) {
-            setIsAiActive(true);
-            setManuallyLinked(true);
-            // Refresh storage/ui but wait a beat for key injection
-            setTimeout(() => load(), 500);
+            // Wait a beat for the environment to catch up, then load
+            setTimeout(() => load(), 1000);
         }
     };
 
@@ -123,7 +126,7 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
             window.removeEventListener(storageEvents.DATA_UPDATED, handleDataUpdate);
             clearInterval(interval);
         };
-    }, [user.id, isAiActive, manuallyLinked]);
+    }, [user.id, isAiActive, assumeSuccess]);
 
     const handleAddTask = (e: React.FormEvent) => {
         e.preventDefault();

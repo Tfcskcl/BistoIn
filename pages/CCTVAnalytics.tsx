@@ -46,15 +46,6 @@ const AreaIcon = ({ area }: { area?: string }) => {
     return <ScanLine size={24} className="text-slate-400" />;
 };
 
-const ProviderIcon = ({ provider }: { provider?: CameraProvider }) => {
-    switch (provider) {
-        case 'EZVIZ': return <div className="text-[8px] font-black bg-orange-500 text-white px-1 rounded">EZVIZ</div>;
-        case 'HIKVISION': return <div className="text-[8px] font-black bg-red-600 text-white px-1 rounded">HIK</div>;
-        case 'CP_PLUS': return <div className="text-[8px] font-black bg-blue-600 text-white px-1 rounded">CP+</div>;
-        default: return <Link size={10} className="text-slate-400" />;
-    }
-};
-
 const ScoreCircle = ({ score, label, color }: { score: number, label: string, color: string }) => (
     <div className="flex flex-col items-center gap-2">
         <div className="relative w-16 h-16 flex items-center justify-center">
@@ -82,7 +73,6 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
     const [liveLogs, setLiveLogs] = useState<{msg: string, time: string, type: 'info' | 'alert'}[]>([]);
     
     const [showFeedModal, setShowFeedModal] = useState(false);
-    const [showEzvizGuide, setShowEzvizGuide] = useState(false);
     const [newFeed, setNewFeed] = useState<Partial<CameraFeed>>({
         name: '', url: '', provider: 'EZVIZ', area: 'Kitchen'
     });
@@ -238,8 +228,8 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
             if (err.message?.includes("NEURAL_GATEWAY_STANDBY")) {
                 alert("Audit failed: System requires a valid API Key. Please establish a link via Nexus Control.");
                 onChangeView(AppView.INTEGRATIONS);
-            } else if (err.message?.includes("Requested entity was not found")) {
-                alert("Auth Session Expired. Resetting Gateway.");
+            } else if (err.message?.includes("NEURAL_LINK_EXPIRED") || err.message?.includes("entity was not found")) {
+                alert("Auth Session Expired. Resetting Gateway Link...");
                 await openNeuralGateway();
             } else {
                 alert("Audit failed: " + err.message);
@@ -249,9 +239,22 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
 
     const handleDownloadReport = (analysis: CCTVAnalysisResult, videoName: string) => {
         const win = window.open('', '_blank');
-        if (!win) return;
+        if (!win) {
+            alert("Report Export Blocked. Please allow popups for this site to download neural audits.");
+            return;
+        }
+
         const date = new Date().toLocaleString();
+        
+        // Safety checks for rendering
+        const efficiency = analysis.performance_scores?.kitchen_efficiency || 0;
+        const hygiene = analysis.performance_scores?.hygiene_safety_score || 0;
+        const integrity = analysis.performance_scores?.financial_integrity_score || 0;
+        const violations = analysis.hygiene_audit?.violations || [];
+        const cash = analysis.cash_movement;
+
         win.document.write(`
+            <!DOCTYPE html>
             <html>
                 <head>
                     <title>BistroVision Neural Audit - ${videoName}</title>
@@ -261,80 +264,87 @@ export const CCTVAnalytics: React.FC<{ user: User; onChangeView: (view: AppView)
                         body { font-family: 'Inter', sans-serif; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                         @page { margin: 15mm; size: A4; }
                         .glass-print { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 12px; padding: 16px; }
+                        .score-tag { font-weight: 900; font-size: 1.875rem; line-height: 2.25rem; }
                     </style>
                 </head>
                 <body class="p-10 bg-white text-slate-900">
                     <div class="max-w-4xl mx-auto">
                         <div class="flex justify-between items-center border-b-4 border-slate-900 pb-8 mb-10">
                             <div>
-                                <h1 class="text-4xl font-black uppercase tracking-tighter">BistroVision Neural Audit</h1>
-                                <p class="text-slate-500 font-bold uppercase tracking-widest text-xs mt-2">Vision Node 04 // ${analysis.detected_area}</p>
+                                <h1 class="text-4xl font-black uppercase tracking-tighter">Neural Audit Artifact</h1>
+                                <p class="text-slate-500 font-bold uppercase tracking-widest text-xs mt-2">Vision Node 04 // Channel: ${videoName}</p>
                             </div>
                             <div class="text-right">
-                                <p class="text-[10px] font-black uppercase text-emerald-600 tracking-[0.3em] mb-1">Authenticated AI Report</p>
+                                <p class="text-[10px] font-black uppercase text-emerald-600 tracking-[0.3em] mb-1">Authenticated AI Synthesis</p>
                                 <p class="text-lg font-bold">${user.restaurantName}</p>
                                 <p class="text-[10px] text-slate-400 font-mono">${date}</p>
                             </div>
                         </div>
+
                         <div class="grid grid-cols-3 gap-6 mb-10">
                             <div class="glass-print">
-                                <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Efficiency Score</p>
-                                <p class="text-3xl font-black text-emerald-600">${analysis.performance_scores.kitchen_efficiency}%</p>
+                                <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Efficiency Node</p>
+                                <p class="score-tag text-emerald-600">${efficiency}%</p>
                             </div>
                             <div class="glass-print">
-                                <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Hygiene Compliance</p>
-                                <p class="text-3xl font-black text-blue-600">${analysis.performance_scores.hygiene_safety_score}%</p>
+                                <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Hygiene Shield</p>
+                                <p class="score-tag text-blue-600">${hygiene}%</p>
                             </div>
                             <div class="glass-print">
-                                <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Financial Integrity</p>
-                                <p class="text-3xl font-black text-indigo-600">${analysis.performance_scores.financial_integrity_score}%</p>
+                                <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Financial Check</p>
+                                <p class="score-tag text-indigo-600">${integrity}%</p>
                             </div>
                         </div>
-                        <div class="mb-10">
-                            <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 border-b-2 pb-1">Executive Summary</h3>
-                            <p class="text-sm italic leading-relaxed text-slate-700">"${analysis.summary_report}"</p>
+
+                        <div class="mb-10 p-6 bg-slate-50 rounded-2xl border-l-4 border-emerald-500">
+                            <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">Neural Executive Summary</h3>
+                            <p class="text-sm italic leading-relaxed text-slate-700 font-medium">"${analysis.summary_report || 'Analysis parameters incomplete.'}"</p>
                         </div>
+
                         <div class="grid grid-cols-2 gap-10 mb-10">
                             <div>
                                 <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 border-b-2 pb-1">Hygiene Deviations</h3>
                                 <div class="space-y-4">
-                                    ${(analysis.hygiene_audit?.violations || []).length === 0 ? '<p class="text-sm text-emerald-600 font-bold">✓ Zero violations detected.</p>' : 
-                                        analysis.hygiene_audit?.violations.map(v => `
+                                    ${violations.length === 0 ? '<p class="text-sm text-emerald-600 font-bold">✓ Zero behavioral hygiene violations detected.</p>' : 
+                                        violations.map(v => `
                                         <div class="p-3 bg-slate-50 rounded-lg border-l-4 ${v.severity === 'high' ? 'border-red-500' : 'border-amber-500'}">
-                                            <p class="text-[10px] font-black uppercase">${v.type}</p>
+                                            <p class="text-[10px] font-black uppercase">${v.type.replace('_', ' ')}</p>
                                             <p class="text-xs text-slate-600 mt-1">${v.description}</p>
                                         </div>
                                     `).join('')}
                                 </div>
                             </div>
                             <div>
-                                <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 border-b-2 pb-1">Financial Audit</h3>
+                                <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 border-b-2 pb-1">Fiscal Inflow Summary</h3>
                                 <div class="space-y-2">
-                                    <div class="flex justify-between text-xs font-bold border-b pb-1"><span>Total Received</span><span>₹${analysis.cash_movement?.total_received}</span></div>
-                                    <div class="flex justify-between text-xs font-bold border-b pb-1"><span>Withdrawals</span><span class="text-red-600">₹${analysis.cash_movement?.total_withdrawals}</span></div>
-                                    <div class="flex justify-between text-xs font-bold border-b pb-1"><span>Discrepancies</span><span class="${analysis.cash_movement?.drawer_discrepancies ? 'text-red-600' : 'text-emerald-600'}">${analysis.cash_movement?.drawer_discrepancies}</span></div>
+                                    <div class="flex justify-between text-xs font-bold border-b pb-1"><span>Total Received</span><span>₹${cash?.total_received || 0}</span></div>
+                                    <div class="flex justify-between text-xs font-bold border-b pb-1"><span>Withdrawals</span><span class="text-red-600">₹${cash?.total_withdrawals || 0}</span></div>
+                                    <div class="flex justify-between text-xs font-bold border-b pb-1"><span>Discrepancies</span><span class="${cash?.drawer_discrepancies ? 'text-red-600' : 'text-emerald-600'}">${cash?.drawer_discrepancies || 0}</span></div>
                                 </div>
-                                <div class="mt-4">
-                                    <p class="text-[9px] font-black uppercase text-slate-400 mb-2">Withdrawal Log</p>
-                                    ${(analysis.cash_movement?.withdrawal_logs || []).map(log => `
-                                        <div class="flex justify-between text-[10px] mb-1">
-                                            <span class="text-slate-500">${log.timestamp}</span>
-                                            <span class="font-bold">${log.purpose} - ₹${log.amount}</span>
+                                <div class="mt-6">
+                                    <p class="text-[9px] font-black uppercase text-slate-400 mb-2">Audit Footprint (Patterns)</p>
+                                    ${(analysis.staff_movement_summary?.patterns || []).filter(p => p.detected).map(p => `
+                                        <div class="flex justify-between text-[10px] mb-2 p-2 bg-slate-50 rounded">
+                                            <span class="font-bold text-slate-700">${p.name}</span>
+                                            <span class="text-emerald-600 font-black">DETECTED</span>
                                         </div>
-                                    `).join('')}
+                                    `).join('') || '<p class="text-[10px] text-slate-400 italic">No abnormal patterns detected.</p>'}
                                 </div>
                             </div>
                         </div>
+
                         <div class="pt-10 border-t-2 border-slate-100 text-[10px] text-slate-400 font-bold uppercase tracking-widest flex justify-between">
-                            <div>Source Archive: ${videoName}</div>
+                            <div>Encrypted Identification Hash: ${Math.random().toString(36).substring(7).toUpperCase()}</div>
                             <div>BistroConnect Intelligence Systems • NODE_04</div>
                         </div>
                     </div>
+                    <script>
+                        window.onload = function() { window.print(); };
+                    </script>
                 </body>
             </html>
         `);
         win.document.close();
-        setTimeout(() => { win.focus(); win.print(); win.close(); }, 1000);
     };
 
     const toggleLiveMode = async () => {
