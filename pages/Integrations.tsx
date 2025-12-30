@@ -37,9 +37,7 @@ export const Integrations: React.FC = () => {
 
   // Neural Gateway Status
   const [isGatewayActive, setIsGatewayActive] = useState(hasValidApiKey());
-  const [handshakeStep, setHandshakeStep] = useState<1 | 2>(hasValidApiKey() ? 2 : 1);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [manuallyLinked, setManuallyLinked] = useState(false);
 
   // Integration Config State
   const [configModal, setConfigModal] = useState<IntegrationItem | null>(null);
@@ -54,29 +52,17 @@ export const Integrations: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
-      const checkGateway = async () => {
-          if (manuallyLinked) return;
-
-          let selected = false;
-          if ((window as any).aistudio) {
-              try {
-                  selected = await (window as any).aistudio.hasSelectedApiKey();
-              } catch (e) {}
-          }
-          const envValid = hasValidApiKey();
-          const active = selected || envValid;
-          
-          if (active && !isGatewayActive) {
-              setIsGatewayActive(true);
-              setHandshakeStep(2);
-          } else if (!active && !envValid && isGatewayActive && !(window as any).aistudio) {
-              setIsGatewayActive(false);
-              setHandshakeStep(1);
+      const checkGatewaySync = async () => {
+          // Strictly check the current availability of the API Key
+          const valid = hasValidApiKey();
+          if (valid !== isGatewayActive) {
+              setIsGatewayActive(valid);
           }
       };
 
-      checkGateway();
-      const interval = setInterval(checkGateway, 2000);
+      // Periodic check for environmental sync (e.g. if key is revoked or manually injected)
+      const interval = setInterval(checkGatewaySync, 2000);
+      checkGatewaySync();
 
       if (user) {
           const links = storageService.getPOSConnections(user.id);
@@ -94,16 +80,18 @@ export const Integrations: React.FC = () => {
       }
 
       return () => clearInterval(interval);
-  }, [user, handshakeStep, isGatewayActive, manuallyLinked]);
+  }, [user, isGatewayActive]);
 
   const handleNeuralHandshake = async () => {
       setIsVerifying(true);
-      const success = await openNeuralGateway();
-      if (success) {
+      // Calls openSelectKey() platform dialog
+      const triggered = await openNeuralGateway();
+      
+      // PER MANDATE: Assume success after triggering dialog to proceed
+      if (triggered) {
           setIsGatewayActive(true);
-          setHandshakeStep(2);
-          setManuallyLinked(true);
       }
+      
       setIsVerifying(false);
   };
 

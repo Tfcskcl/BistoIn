@@ -9,11 +9,14 @@ import { RecipeCard, SOP, StrategyReport, UnifiedSchema, CCTVAnalysisResult, Use
 export const openNeuralGateway = async (): Promise<boolean> => {
     if ((window as any).aistudio) {
         try {
+            // Trigger the secure platform dialog
             await (window as any).aistudio.openSelectKey();
-            // Per Gemini Guidelines: Assume success to mitigate race conditions
+            
+            // MANDATORY: Assume success after triggering to mitigate race conditions
+            // The selected key will be injected into process.env.API_KEY automatically
             return true;
         } catch (e) {
-            console.error("Neural Gateway Handshake failed:", e);
+            console.error("Nexus Gateway: Handshake initiation failed:", e);
             return false;
         }
     }
@@ -23,11 +26,10 @@ export const openNeuralGateway = async (): Promise<boolean> => {
 
 /**
  * Global check for neural link health.
- * Validates the presence of the injected API_KEY environment variable.
+ * Validates either the platform selection or the env variable.
  */
 export const hasValidApiKey = (): boolean => {
     const key = process.env.API_KEY;
-    // Build systems sometimes inject "undefined" or "null" as actual strings
     const isPlaceholder = !key || 
                          String(key).toLowerCase() === "undefined" || 
                          String(key).toLowerCase() === "null" || 
@@ -38,13 +40,14 @@ export const hasValidApiKey = (): boolean => {
 
 /**
  * Internal helper to safely initialize the AI client.
- * Strictly validates the process.env.API_KEY to prevent library-level crashes.
+ * Strictly initializes a NEW instance right before the call to use the latest key.
  */
 const getAI = () => {
-    if (!hasValidApiKey()) {
+    const key = process.env.API_KEY;
+    if (!key || String(key).trim().length < 8) {
         throw new Error("NEURAL_GATEWAY_STANDBY: System requires a valid API Key. Please establish a link via Nexus Control.");
     }
-    return new GoogleGenAI({ apiKey: String(process.env.API_KEY).trim() });
+    return new GoogleGenAI({ apiKey: String(key).trim() });
 };
 
 /**
@@ -52,11 +55,12 @@ const getAI = () => {
  * If "Requested entity was not found" is detected, it re-opens the selection dialog.
  */
 const handleNeuralError = async (err: any) => {
-    if (err.message && err.message.includes("Requested entity was not found")) {
-        console.warn("Nexus Gateway: Authentication Expired. Resetting Link.");
-        // Force reopen the selection dialog
+    const errorMsg = err?.message || String(err);
+    if (errorMsg.includes("Requested entity was not found")) {
+        console.warn("Nexus Gateway: Authentication Expired or Entity Missing. Resetting Link.");
+        // Reset key selection state and prompt again via standard dialog
         await openNeuralGateway();
-        throw new Error("NEURAL_SESSION_RESET: Gateway link reset. Please retry your request.");
+        throw new Error("NEURAL_SESSION_RESET: Gateway link reset required. Please retry your request after selecting a key.");
     }
     throw err;
 };
@@ -99,62 +103,70 @@ export const analyzeStaffMovement = async (
 };
 
 export const generateChecklistFromAnalysis = async (analysis: CCTVAnalysisResult): Promise<string[]> => {
-    const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Generate a prioritized operational task checklist based on these CCTV analysis findings: ${JSON.stringify(analysis)}`,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING }
+    try {
+        const ai = getAI();
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Generate a prioritized operational task checklist based on these CCTV analysis findings: ${JSON.stringify(analysis)}`,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING }
+                }
             }
-        }
-    });
-    return cleanAndParseJSON<string[]>(response.text || '[]');
+        });
+        return cleanAndParseJSON<string[]>(response.text || '[]');
+    } catch (e) {
+        return handleNeuralError(e);
+    }
 };
 
 export const generateRevisedSOPFromAnalysis = async (analysis: CCTVAnalysisResult, currentSop?: SOP): Promise<SOP> => {
-    const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Revise the standard operating procedure based on observed behavioral deviations and hygiene violations. 
-        Analysis Data: ${JSON.stringify(analysis)}
-        ${currentSop ? `Current SOP: ${JSON.stringify(currentSop)}` : ''}`,
-        config: {
-            responseMimeType: "application/json",
-            systemInstruction: SYSTEM_INSTRUCTION,
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    sop_id: { type: Type.STRING },
-                    title: { type: Type.STRING },
-                    scope: { type: Type.STRING },
-                    prerequisites: { type: Type.STRING },
-                    materials_equipment: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    stepwise_procedure: {
-                        type: Type.ARRAY,
-                        items: {
-                            type: Type.OBJECT,
-                            properties: {
-                                step_no: { type: Type.NUMBER },
-                                action: { type: Type.STRING },
-                                responsible_role: { type: Type.STRING },
-                                time_limit: { type: Type.STRING }
-                            },
-                            required: ['step_no', 'action', 'responsible_role']
-                        }
+    try {
+        const ai = getAI();
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Revise the standard operating procedure based on observed behavioral deviations and hygiene violations. 
+            Analysis Data: ${JSON.stringify(analysis)}
+            ${currentSop ? `Current SOP: ${JSON.stringify(currentSop)}` : ''}`,
+            config: {
+                responseMimeType: "application/json",
+                systemInstruction: SYSTEM_INSTRUCTION,
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        sop_id: { type: Type.STRING },
+                        title: { type: Type.STRING },
+                        scope: { type: Type.STRING },
+                        prerequisites: { type: Type.STRING },
+                        materials_equipment: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        stepwise_procedure: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    step_no: { type: Type.NUMBER },
+                                    action: { type: Type.STRING },
+                                    responsible_role: { type: Type.STRING },
+                                    time_limit: { type: Type.STRING }
+                                },
+                                required: ['step_no', 'action', 'responsible_role']
+                            }
+                        },
+                        critical_control_points: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        monitoring_checklist: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        kpis: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        quick_troubleshooting: { type: Type.STRING }
                     },
-                    critical_control_points: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    monitoring_checklist: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    kpis: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    quick_troubleshooting: { type: Type.STRING }
-                },
-                required: ['title', 'scope', 'stepwise_procedure']
+                    required: ['title', 'scope', 'stepwise_procedure']
+                }
             }
-        }
-    });
-    return cleanAndParseJSON<SOP>(response.text || '{}');
+        });
+        return cleanAndParseJSON<SOP>(response.text || '{}');
+    } catch (e) {
+        return handleNeuralError(e);
+    }
 };
 
 export const generateRecipeCard = async (
@@ -249,44 +261,48 @@ export const generateRecipeCard = async (
 };
 
 export const generateSOP = async (topic: string): Promise<SOP> => {
-    const ai = getAI();
-    const res = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Generate Standard Operating Procedure for: ${topic}`,
-        config: { 
-            responseMimeType: 'application/json', 
-            systemInstruction: SYSTEM_INSTRUCTION,
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    sop_id: { type: Type.STRING },
-                    title: { type: Type.STRING },
-                    scope: { type: Type.STRING },
-                    prerequisites: { type: Type.STRING },
-                    materials_equipment: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    stepwise_procedure: {
-                        type: Type.ARRAY,
-                        items: {
-                            type: Type.OBJECT,
-                            properties: {
-                                step_no: { type: Type.NUMBER },
-                                action: { type: Type.STRING },
-                                responsible_role: { type: Type.STRING },
-                                time_limit: { type: Type.STRING }
-                            },
-                            required: ['step_no', 'action', 'responsible_role']
-                        }
+    try {
+        const ai = getAI();
+        const res = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Generate Standard Operating Procedure for: ${topic}`,
+            config: { 
+                responseMimeType: 'application/json', 
+                systemInstruction: SYSTEM_INSTRUCTION,
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        sop_id: { type: Type.STRING },
+                        title: { type: Type.STRING },
+                        scope: { type: Type.STRING },
+                        prerequisites: { type: Type.STRING },
+                        materials_equipment: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        stepwise_procedure: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    step_no: { type: Type.NUMBER },
+                                    action: { type: Type.STRING },
+                                    responsible_role: { type: Type.STRING },
+                                    time_limit: { type: Type.STRING }
+                                },
+                                required: ['step_no', 'action', 'responsible_role']
+                            }
+                        },
+                        critical_control_points: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        monitoring_checklist: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        kpis: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        quick_troubleshooting: { type: Type.STRING }
                     },
-                    critical_control_points: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    monitoring_checklist: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    kpis: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    quick_troubleshooting: { type: Type.STRING }
-                },
-                required: ['title', 'scope', 'stepwise_procedure']
+                    required: ['title', 'scope', 'stepwise_procedure']
+                }
             }
-        }
-    });
-    return cleanAndParseJSON(res.text || '{}');
+        });
+        return cleanAndParseJSON(res.text || '{}');
+    } catch (e) {
+        return handleNeuralError(e);
+    }
 };
 
 export const analyzeUnifiedRestaurantData = async (data: any): Promise<UnifiedSchema> => {
@@ -381,16 +397,20 @@ export const generateStrategy = async (u: User, q: string, c: string): Promise<S
 };
 
 export const generateMarketingImage = async (prompt: string, aspectRatio: string): Promise<string> => {
-    const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: { parts: [{ text: prompt }] },
-        config: { imageConfig: { aspectRatio: aspectRatio as any } }
-    });
-    for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
+    try {
+        const ai = getAI();
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: { parts: [{ text: prompt }] },
+            config: { imageConfig: { aspectRatio: aspectRatio as any } }
+        });
+        for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
+        }
+        throw new Error("Visual generation failed.");
+    } catch (e) {
+        return handleNeuralError(e);
     }
-    throw new Error("Visual generation failed.");
 };
 
 export const generateMarketingVideo = async (imgs: string[], prompt: string, ar: string): Promise<string> => {
@@ -515,12 +535,16 @@ export const generateKitchenDesign = async (title: string, l: number, w: number,
 };
 
 export const generateKitchenWorkflow = async (desc: string): Promise<string> => {
-    const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Architectural Kitchen Workflow Optimization. Pain Points: ${desc}. Return Markdown report.`,
-    });
-    return response.text || 'Workflow generation failed.';
+    try {
+        const ai = getAI();
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Architectural Kitchen Workflow Optimization. Pain Points: ${desc}. Return Markdown report.`,
+        });
+        return response.text || 'Workflow generation failed.';
+    } catch (e) {
+        return handleNeuralError(e);
+    }
 };
 
 export const generatePurchaseOrder = async (s: string, i: any[]): Promise<any> => {
@@ -528,27 +552,39 @@ export const generatePurchaseOrder = async (s: string, i: any[]): Promise<any> =
 };
 
 export const getChatResponse = async (h: any[], i: string): Promise<string> => {
-    const ai = getAI();
-    const res = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: i });
-    return res.text || '';
+    try {
+        const ai = getAI();
+        const res = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: i });
+        return res.text || '';
+    } catch (e) {
+        return handleNeuralError(e);
+    }
 };
 
 export const analyzeMenuEngineering = async (i: any[]): Promise<any[]> => {
-    const ai = getAI();
-    const res = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `${MENU_ENGINEERING_PROMPT}\nData: ${JSON.stringify(i)}`,
-        config: { responseMimeType: "application/json" }
-    });
-    return cleanAndParseJSON<any[]>(res.text || '[]');
+    try {
+        const ai = getAI();
+        const res = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `${MENU_ENGINEERING_PROMPT}\nData: ${JSON.stringify(i)}`,
+            config: { responseMimeType: "application/json" }
+        });
+        return cleanAndParseJSON<any[]>(res.text || '[]');
+    } catch (e) {
+        return handleNeuralError(e);
+    }
 };
 
 export const verifyLocationWithMaps = async (location: string): Promise<string> => {
-    const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: `Verify if "${location}" is a valid restaurant location. Provide a short description.`,
-        config: { tools: [{ googleMaps: {} }] }
-    });
-    return response.text || "Verified via Neural Maps Pass.";
+    try {
+        const ai = getAI();
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: `Verify if "${location}" is a valid restaurant location. Provide a short description.`,
+            config: { tools: [{ googleMaps: {} }] }
+        });
+        return response.text || "Verified via Neural Maps Pass.";
+    } catch (e) {
+        return handleNeuralError(e);
+    }
 };
