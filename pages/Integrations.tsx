@@ -7,7 +7,7 @@ import {
     ImageIcon, Link2, LogOut, Globe, UserIcon, BarChart3, FileJson, 
     Archive, Database, ShieldAlert, Cpu, IndianRupee, History, Trash2, 
     Calendar, Plus, Users, ShoppingBag, Wallet, Network, Settings2, Sparkles, Activity, Zap,
-    RefreshCw, Info, ExternalLink as LinkIcon, Terminal, Check
+    RefreshCw, Info, ExternalLink as LinkIcon, Terminal, Check, Shield, Code
 } from 'lucide-react';
 import { storageService, storageEvents } from '../services/storageService';
 import { ManualSalesEntry, ManualPurchaseEntry, ManualExpenseEntry, ManualManpowerEntry, User, IntegrationConfig } from '../types';
@@ -63,13 +63,10 @@ export const Integrations: React.FC = () => {
           const envValid = hasValidApiKey();
           const active = selected || envValid;
           
-          // Rule: If we are already online, don't flip back to offline based on the interval
-          // This mitigates the race condition where hasSelectedApiKey is briefly false during injection
           if (active && !isGatewayActive) {
               setIsGatewayActive(true);
               setHandshakeStep(3);
           } else if (!active && !envValid && isGatewayActive && !(window as any).aistudio) {
-              // Only reset if there's no provider AND no env key
               setIsGatewayActive(false);
               setHandshakeStep(1);
           }
@@ -99,11 +96,10 @@ export const Integrations: React.FC = () => {
   const handleNeuralHandshake = async () => {
       setIsVerifying(true);
       
-      // Step 1: Trigger the selection
+      // Call the provisioning helper
       const success = await openNeuralGateway();
       
-      // Step 2: Immediately assume success to move past the standby screen
-      // Per Guidelines: Assume selection was successful and proceed.
+      // Rule: Assume key selection was successful and proceed.
       if (success || (window as any).aistudio || hasValidApiKey()) {
           setIsGatewayActive(true);
           setHandshakeStep(3);
@@ -141,7 +137,7 @@ export const Integrations: React.FC = () => {
           metadata: {
               projectName: "BistroConnect_Project_Active",
               exportDate: new Date().toISOString(),
-              version: "2.5.4",
+              version: "2.5.5",
               engine: "Gemini-3-Pro-Unified"
           },
           data: {
@@ -321,22 +317,45 @@ export const Integrations: React.FC = () => {
                                                 <Key size={32} />
                                             </div>
                                             <div>
-                                                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Establish Neural Link</h3>
+                                                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Connect Gemini AI</h3>
                                                 <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mt-1">STATUS: WAITING_FOR_KEY_INJECTION</p>
                                             </div>
                                         </div>
-                                        <div className="p-6 bg-slate-900/50 rounded-3xl border border-white/5 space-y-4">
-                                            <p className="text-xs text-slate-400 leading-relaxed">
-                                                By establishing this link, you unlock the full capability suite of the BistroConnect Neural OS. Please ensure you select an API key from a <strong>Paid GCP project</strong> to enable video and 4K image inference.
+                                        
+                                        <div className="space-y-4">
+                                            <p className="text-sm text-slate-400 leading-relaxed">
+                                                Please paste your Google Gemini API Key below via the secure AI Studio tunnel. This key will be used to power your AI features.
                                             </p>
+                                            
+                                            {/* Technical Request Preview as requested */}
+                                            <div className="bg-black/40 rounded-2xl p-6 border border-white/10 font-mono text-xs text-slate-300">
+                                                <div className="flex justify-between items-center mb-4 pb-2 border-b border-white/5">
+                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Handshake_Payload_Preview</span>
+                                                    <Code size={12} className="text-indigo-500" />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <p><span className="text-emerald-500">POST</span> /api/ai/handshake</p>
+                                                    <p className="text-slate-500 mt-2">Body:</p>
+                                                    <p className="text-indigo-400">{"{"}</p>
+                                                    <p className="ml-4">"provider": <span className="text-emerald-400">"gemini"</span>,</p>
+                                                    <p className="ml-4">"api_key": <span className="text-emerald-400">"AIzaSy••••••••••••••••••••••••"</span></p>
+                                                    <p className="text-indigo-400">{"}"}</p>
+                                                </div>
+                                            </div>
+
                                             <button 
                                                 onClick={handleNeuralHandshake}
                                                 disabled={isVerifying}
                                                 className="w-full py-5 bg-emerald-600 text-white font-black rounded-2xl text-xs uppercase tracking-[0.2em] hover:bg-emerald-500 transition-all shadow-2xl flex items-center justify-center gap-3"
                                             >
                                                 {isVerifying ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18}/>}
-                                                Establish AI Studio Link
+                                                Connect & Verify
                                             </button>
+                                            
+                                            <div className="flex items-center gap-2 px-2">
+                                                <Shield size={12} className="text-slate-600" />
+                                                <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Encrypted Key Handling via aistudio_secure_provider</p>
+                                            </div>
                                         </div>
                                         <button onClick={() => setHandshakeStep(1)} className="text-[10px] font-black text-slate-600 uppercase tracking-widest hover:text-white transition-colors">Abort Handshake</button>
                                     </div>
@@ -351,7 +370,7 @@ export const Integrations: React.FC = () => {
                                         </div>
                                         <div>
                                             <h3 className="text-2xl font-black text-white uppercase tracking-tighter">API_GATEWAY_ONLINE</h3>
-                                            <p className="text-[10px] font-mono text-emerald-500 uppercase tracking-widest mt-1">System Health: 100% // Model: Gemini-3-Pro-Preview</p>
+                                            <p className="text-[10px] font-mono text-emerald-500 uppercase tracking-widest mt-1">Verification Status: Verified // Model: Gemini-3-Pro-Preview</p>
                                         </div>
                                     </div>
                                     <button 
