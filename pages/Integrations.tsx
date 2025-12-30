@@ -7,7 +7,7 @@ import {
     ImageIcon, Link2, LogOut, Globe, UserIcon, BarChart3, FileJson, 
     Archive, Database, ShieldAlert, Cpu, IndianRupee, History, Trash2, 
     Calendar, Plus, Users, ShoppingBag, Wallet, Network, Settings2, Sparkles, Activity, Zap,
-    RefreshCw, Info, ExternalLink as LinkIcon, Terminal, Check, Shield, Code
+    RefreshCw, Info, ExternalLink as LinkIcon, Terminal, Check, Shield, Code, ArrowLeft
 } from 'lucide-react';
 import { storageService, storageEvents } from '../services/storageService';
 import { ManualSalesEntry, ManualPurchaseEntry, ManualExpenseEntry, ManualManpowerEntry, User, IntegrationConfig } from '../types';
@@ -39,6 +39,7 @@ export const Integrations: React.FC = () => {
   const [isGatewayActive, setIsGatewayActive] = useState(hasValidApiKey());
   const [handshakeStep, setHandshakeStep] = useState<1 | 2 | 3 | 4>(hasValidApiKey() ? 3 : 1);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [manuallyActivated, setManuallyActivated] = useState(false);
 
   // Integration Config State
   const [configModal, setConfigModal] = useState<IntegrationItem | null>(null);
@@ -54,6 +55,9 @@ export const Integrations: React.FC = () => {
 
   useEffect(() => {
       const checkGateway = async () => {
+          // If we manually activated, we stay active to prevent the race condition flicker
+          if (manuallyActivated) return;
+
           let selected = false;
           if ((window as any).aistudio) {
               try {
@@ -73,7 +77,7 @@ export const Integrations: React.FC = () => {
       };
 
       checkGateway();
-      const interval = setInterval(checkGateway, 1000);
+      const interval = setInterval(checkGateway, 2000);
 
       if (user) {
           const links = storageService.getPOSConnections(user.id);
@@ -91,19 +95,20 @@ export const Integrations: React.FC = () => {
       }
 
       return () => clearInterval(interval);
-  }, [user, handshakeStep, isGatewayActive]);
+  }, [user, handshakeStep, isGatewayActive, manuallyActivated]);
 
   const handleNeuralHandshake = async () => {
       setIsVerifying(true);
       
-      // Call the provisioning helper
-      const success = await openNeuralGateway();
+      // Call the provisioning helper (opens AI Studio dialog)
+      await openNeuralGateway();
       
-      // Rule: Assume key selection was successful and proceed.
-      if (success || (window as any).aistudio || hasValidApiKey()) {
-          setIsGatewayActive(true);
-          setHandshakeStep(3);
-      }
+      // MANDATORY: Assume selection was successful and proceed immediately.
+      // This mitigates the race condition where hasSelectedApiKey might return false
+      // before the injection is finished.
+      setIsGatewayActive(true);
+      setHandshakeStep(3);
+      setManuallyActivated(true);
       
       setIsVerifying(false);
   };
@@ -137,7 +142,7 @@ export const Integrations: React.FC = () => {
           metadata: {
               projectName: "BistroConnect_Project_Active",
               exportDate: new Date().toISOString(),
-              version: "2.5.5",
+              version: "2.5.6",
               engine: "Gemini-3-Pro-Unified"
           },
           data: {
@@ -280,7 +285,7 @@ export const Integrations: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="p-10 min-h-[300px] flex flex-col justify-center">
+                    <div className="p-10 min-h-[400px] flex flex-col justify-center">
                         {!isGatewayActive ? (
                             <div className="space-y-8 animate-fade-in">
                                 {handshakeStep === 1 && (
@@ -322,42 +327,43 @@ export const Integrations: React.FC = () => {
                                             </div>
                                         </div>
                                         
-                                        <div className="space-y-4">
+                                        <div className="space-y-6">
                                             <p className="text-sm text-slate-400 leading-relaxed">
-                                                Please paste your Google Gemini API Key below via the secure AI Studio tunnel. This key will be used to power your AI features.
+                                                Please paste your Google Gemini API Key below. This key will be used to power your AI features.
                                             </p>
                                             
-                                            {/* Technical Request Preview as requested */}
-                                            <div className="bg-black/40 rounded-2xl p-6 border border-white/10 font-mono text-xs text-slate-300">
-                                                <div className="flex justify-between items-center mb-4 pb-2 border-b border-white/5">
-                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Handshake_Payload_Preview</span>
-                                                    <Code size={12} className="text-indigo-500" />
+                                            {/* Technical Request Preview Block */}
+                                            <div className="bg-black/60 rounded-3xl p-8 border border-white/10 font-mono text-sm leading-relaxed text-slate-300 shadow-inner">
+                                                <div className="flex justify-between items-center mb-6 pb-2 border-b border-white/5">
+                                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Handshake_Payload_Interface</span>
+                                                    <Code size={14} className="text-indigo-500" />
                                                 </div>
-                                                <div className="space-y-1">
-                                                    <p><span className="text-emerald-500">POST</span> /api/ai/handshake</p>
-                                                    <p className="text-slate-500 mt-2">Body:</p>
+                                                <div className="space-y-2">
+                                                    <p><span className="text-emerald-500 font-bold">POST</span> /api/ai/handshake</p>
+                                                    <p className="text-slate-500 mt-4 font-bold">Body:</p>
                                                     <p className="text-indigo-400">{"{"}</p>
-                                                    <p className="ml-4">"provider": <span className="text-emerald-400">"gemini"</span>,</p>
-                                                    <p className="ml-4">"api_key": <span className="text-emerald-400">"AIzaSy••••••••••••••••••••••••"</span></p>
+                                                    <p className="ml-6">"provider": <span className="text-emerald-400">"gemini"</span>,</p>
+                                                    <p className="ml-6">"api_key": <span className="text-emerald-400">"AIzaSy••••••••••••••••••••••••"</span></p>
                                                     <p className="text-indigo-400">{"}"}</p>
                                                 </div>
                                             </div>
 
-                                            <button 
-                                                onClick={handleNeuralHandshake}
-                                                disabled={isVerifying}
-                                                className="w-full py-5 bg-emerald-600 text-white font-black rounded-2xl text-xs uppercase tracking-[0.2em] hover:bg-emerald-500 transition-all shadow-2xl flex items-center justify-center gap-3"
-                                            >
-                                                {isVerifying ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18}/>}
-                                                Connect & Verify
-                                            </button>
-                                            
-                                            <div className="flex items-center gap-2 px-2">
-                                                <Shield size={12} className="text-slate-600" />
-                                                <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Encrypted Key Handling via aistudio_secure_provider</p>
+                                            <div className="space-y-4">
+                                                <button 
+                                                    onClick={handleNeuralHandshake}
+                                                    disabled={isVerifying}
+                                                    className="w-full py-5 bg-emerald-600 text-white font-black rounded-2xl text-xs uppercase tracking-[0.2em] hover:bg-emerald-500 transition-all shadow-2xl flex items-center justify-center gap-3 active:scale-95"
+                                                >
+                                                    {isVerifying ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18}/>}
+                                                    Connect & Verify
+                                                </button>
+                                                <div className="flex items-center justify-center gap-2 opacity-40">
+                                                    <Shield size={12} className="text-slate-400" />
+                                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Secure Handshake via System Provider</p>
+                                                </div>
                                             </div>
                                         </div>
-                                        <button onClick={() => setHandshakeStep(1)} className="text-[10px] font-black text-slate-600 uppercase tracking-widest hover:text-white transition-colors">Abort Handshake</button>
+                                        <button onClick={() => setHandshakeStep(1)} className="text-[10px] font-black text-slate-600 uppercase tracking-widest hover:text-white transition-colors flex items-center gap-2"><ArrowLeft size={10}/> Cancel Handshake</button>
                                     </div>
                                 )}
                             </div>
@@ -370,14 +376,14 @@ export const Integrations: React.FC = () => {
                                         </div>
                                         <div>
                                             <h3 className="text-2xl font-black text-white uppercase tracking-tighter">API_GATEWAY_ONLINE</h3>
-                                            <p className="text-[10px] font-mono text-emerald-500 uppercase tracking-widest mt-1">Verification Status: Verified // Model: Gemini-3-Pro-Preview</p>
+                                            <p className="text-[10px] font-mono text-emerald-500 uppercase tracking-widest mt-1">System Health: 100% // Model: Gemini-3-Pro-Preview</p>
                                         </div>
                                     </div>
                                     <button 
                                         onClick={handleNeuralHandshake}
                                         className="px-6 py-2.5 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
                                     >
-                                        <RefreshCw size={14}/> Update Link
+                                        <RefreshCw size={14}/> Re-verify Key
                                     </button>
                                 </div>
 
@@ -417,19 +423,6 @@ export const Integrations: React.FC = () => {
                                                     <span className="text-[8px] font-black text-amber-500 uppercase">MISSING_STREAMS</span>
                                                 )}
                                             </div>
-                                            {!Object.values(posLinks).some(v=>v) && (
-                                                <div className="p-4 bg-slate-900/50 rounded-2xl border border-white/5">
-                                                    <p className="text-[10px] text-slate-400 italic mb-3 leading-relaxed">
-                                                        External data sources (Swiggy, Zomato, Petpooja) are not linked. Strategy accuracy may be degraded.
-                                                    </p>
-                                                    <button 
-                                                        onClick={() => setActiveTab('network')}
-                                                        className="text-[10px] font-black text-indigo-400 hover:text-indigo-300 uppercase tracking-widest flex items-center gap-2"
-                                                    >
-                                                        Next Best Action: Link POS Node <ArrowRight size={10}/>
-                                                    </button>
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
                                 </div>
