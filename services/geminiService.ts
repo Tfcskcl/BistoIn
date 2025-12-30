@@ -12,8 +12,8 @@ export const openNeuralGateway = async (): Promise<boolean> => {
             // Trigger the secure platform dialog
             await (window as any).aistudio.openSelectKey();
             
-            // MANDATORY: Assume success after triggering to mitigate race conditions
-            // The selected key will be injected into process.env.API_KEY automatically
+            // MANDATORY: Assume success after triggering to mitigate race conditions.
+            // Proceed as if the key is already injected into process.env.API_KEY.
             return true;
         } catch (e) {
             console.error("Nexus Gateway: Handshake initiation failed:", e);
@@ -44,6 +44,8 @@ export const hasValidApiKey = (): boolean => {
  */
 const getAI = () => {
     const key = process.env.API_KEY;
+    // We check validity here. If the user hasn't selected a key yet, we throw
+    // a specific error that the UI can catch to prompt them.
     if (!key || String(key).trim().length < 8) {
         throw new Error("NEURAL_GATEWAY_STANDBY: System requires a valid API Key. Please establish a link via Nexus Control.");
     }
@@ -58,9 +60,9 @@ const handleNeuralError = async (err: any) => {
     const errorMsg = err?.message || String(err);
     if (errorMsg.includes("Requested entity was not found")) {
         console.warn("Nexus Gateway: Authentication Expired or Entity Missing. Resetting Link.");
-        // Reset key selection state and prompt again via standard dialog
+        // Re-prompt user immediately via standard dialog
         await openNeuralGateway();
-        throw new Error("NEURAL_SESSION_RESET: Gateway link reset required. Please retry your request after selecting a key.");
+        throw new Error("NEURAL_SESSION_RESET: Gateway link reset required. Please select your key in the platform dialog.");
     }
     throw err;
 };

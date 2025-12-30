@@ -38,6 +38,7 @@ export const Integrations: React.FC = () => {
   // Neural Gateway Status
   const [isGatewayActive, setIsGatewayActive] = useState(hasValidApiKey());
   const [isVerifying, setIsVerifying] = useState(false);
+  const [manuallyTriggered, setManuallyTriggered] = useState(false);
 
   // Integration Config State
   const [configModal, setConfigModal] = useState<IntegrationItem | null>(null);
@@ -53,14 +54,17 @@ export const Integrations: React.FC = () => {
 
   useEffect(() => {
       const checkGatewaySync = async () => {
-          // Strictly check the current availability of the API Key
+          // If the user just clicked "Connect", we trust them until a hard error occurs.
+          // This mitigates the race condition where env var injection takes time.
+          if (manuallyTriggered) return;
+
           const valid = hasValidApiKey();
           if (valid !== isGatewayActive) {
               setIsGatewayActive(valid);
           }
       };
 
-      // Periodic check for environmental sync (e.g. if key is revoked or manually injected)
+      // Periodic check for environmental sync
       const interval = setInterval(checkGatewaySync, 2000);
       checkGatewaySync();
 
@@ -80,19 +84,23 @@ export const Integrations: React.FC = () => {
       }
 
       return () => clearInterval(interval);
-  }, [user, isGatewayActive]);
+  }, [user, isGatewayActive, manuallyTriggered]);
 
   const handleNeuralHandshake = async () => {
       setIsVerifying(true);
-      // Calls openSelectKey() platform dialog
+      // Triggers platform window.aistudio.openSelectKey()
       const triggered = await openNeuralGateway();
       
-      // PER MANDATE: Assume success after triggering dialog to proceed
       if (triggered) {
+          // MANDATORY: Assume success after triggering the dialog to proceed immediately.
           setIsGatewayActive(true);
+          setManuallyTriggered(true);
+          
+          // Brief visual feedback before letting the platform dialog take over
+          setTimeout(() => setIsVerifying(false), 500);
+      } else {
+          setIsVerifying(false);
       }
-      
-      setIsVerifying(false);
   };
 
   const handleOpenConfig = (item: IntegrationItem) => {

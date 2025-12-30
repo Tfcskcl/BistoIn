@@ -51,11 +51,15 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
     const [tasks, setTasks] = useState<Task[]>([]);
     const [cctvHistory, setCctvHistory] = useState<CCTVHistoryItem[]>([]);
     const [isAiActive, setIsAiActive] = useState(hasValidApiKey());
+    const [manuallyLinked, setManuallyLinked] = useState(false);
 
     const load = async () => {
         const savedTasks = storageService.getTasks(user.id) || [];
         const history = storageService.getCCTVHistory(user.id) || [];
-        const aiValid = hasValidApiKey();
+        
+        // Use manuallyLinked override for better UX during env injection
+        const aiValid = manuallyLinked || hasValidApiKey();
+        
         setTasks(savedTasks);
         setCctvHistory(history);
         setIsAiActive(aiValid);
@@ -73,8 +77,13 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
                     }))
                 });
                 setUnifiedData(data);
-            } catch (e) { 
+            } catch (e: any) { 
                 console.error("Dashboard AI Fetch failed:", e);
+                // If it was a mock-linked state that failed, we revert
+                if (e.message?.includes("NEURAL_GATEWAY_STANDBY")) {
+                    setIsAiActive(false);
+                    setManuallyLinked(false);
+                }
             } finally { 
                 setLoadingPulse(false); 
             }
@@ -90,7 +99,9 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
     const handleHandshake = async () => {
         const success = await openNeuralGateway();
         if (success) {
+            // Assume success immediately
             setIsAiActive(true);
+            setManuallyLinked(true);
             await load();
         }
     };
@@ -105,8 +116,8 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
         
         const interval = setInterval(() => {
             const aiValid = hasValidApiKey();
-            if (aiValid !== isAiActive) {
-                setIsAiActive(aiValid);
+            if (aiValid && !isAiActive) {
+                setIsAiActive(true);
                 load();
             }
         }, 5000);
@@ -115,7 +126,7 @@ export const Dashboard: React.FC<{ user: User, onChangeView: (v: AppView) => voi
             window.removeEventListener(storageEvents.DATA_UPDATED, handleDataUpdate);
             clearInterval(interval);
         };
-    }, [user.id, isAiActive]);
+    }, [user.id, isAiActive, manuallyLinked]);
 
     const handleAddTask = (e: React.FormEvent) => {
         e.preventDefault();
